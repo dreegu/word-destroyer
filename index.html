@@ -177,6 +177,13 @@
   /* Leaderboard panel */
   .end-lb { flex:1; display:flex; flex-direction:column; padding:32px 28px 24px; }
   @media (min-width:700px) { .end-lb { padding:40px 36px; overflow-y:auto; } }
+  #lbScreen { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:var(--bg); overflow-y:auto; }
+  #lbScreen.hidden { display:none; }
+  .lb-page-tagline { font-size:13px; color:var(--muted); text-align:center;
+    margin-bottom:28px; line-height:1.6; }
+  .lb-page-list { width:100%; max-width:360px; max-height:50vh; }
   .lb-header { font-size:10px; font-weight:900; letter-spacing:0.18em;
     text-transform:uppercase; color:var(--muted); margin-bottom:20px; }
   .lb-list { display:flex; flex-direction:column; overflow-y:auto; }
@@ -259,6 +266,16 @@
     <div class="splash-counter" id="splashCounter"></div>
     <p class="splash-counter-sub">and counting</p>
     <button class="btn" id="splashBtn">Start</button>
+    <button class="btn outline" id="lbPageBtn">Leaderboard</button>
+  </div>
+</div>
+
+<div id="lbScreen" class="hidden">
+  <div class="splash-inner">
+    <p class="splash-wordmark">Word Destroyer</p>
+    <p class="lb-page-tagline">Aim for a high score.<br>Destroying things is fun&nbsp;:)</p>
+    <div class="lb-page-list lb-list" id="lbPageList"><p class="lb-loading">Loading...</p></div>
+    <button class="btn outline" id="lbBackBtn" style="margin-top:32px">Back</button>
   </div>
 </div>
 
@@ -424,6 +441,7 @@ const charCountEl   = document.getElementById('charCount');
 const landingUI     = document.getElementById('landingUI');
 const splashScreen  = document.getElementById('splashScreen');
 const splashBtn     = document.getElementById('splashBtn');
+const lbScreen      = document.getElementById('lbScreen');
 const comboEl       = document.getElementById('comboDisplay');
 const gameScoreArea = document.getElementById('gameScoreArea');
 const gameScoreEl   = document.getElementById('gameScore');
@@ -747,6 +765,8 @@ function drawCursor(x, baselineY) {
 // ═══════════════════════════════════════
 splashBtn.addEventListener('click', goToLanding);
 document.getElementById('logoBtn').addEventListener('click', goToSplash);
+document.getElementById('lbPageBtn').addEventListener('click', goToLbPage);
+document.getElementById('lbBackBtn').addEventListener('click', goToSplash);
 startBtn.addEventListener('click', startGame);
 hiddenInput.addEventListener('keydown', e => {
   if (e.key === 'Enter' && hiddenInput.value.trim()) startGame();
@@ -829,10 +849,33 @@ resumeBtn.addEventListener('click', () => {
 });
 rewriteBtn.addEventListener('click', goToLanding);
 
+async function goToLbPage() {
+  splashScreen.classList.add('hidden');
+  lbScreen.classList.remove('hidden');
+  const listEl = document.getElementById('lbPageList');
+  listEl.innerHTML = '<p class="lb-loading">Loading...</p>';
+  if (sb) {
+    await sbFetchLeaderboard();
+    if (leaderboard.length) {
+      listEl.innerHTML = leaderboard.map((e, i) => `
+        <div class="lb-row">
+          <span class="lb-rank">#${i+1}</span>
+          <span class="lb-name">${e.initials}</span>
+          <span class="lb-score">${e.score.toLocaleString()}</span>
+        </div>`).join('');
+    } else {
+      listEl.innerHTML = '<p class="lb-empty">No scores yet — yours could be first.</p>';
+    }
+  } else {
+    listEl.innerHTML = '<p class="lb-empty">Leaderboard unavailable offline.</p>';
+  }
+}
+
 function goToSplash() {
   cancelAnimationFrame(animId);
   state = 'splash';
   splashScreen.classList.remove('hidden');
+  lbScreen.classList.add('hidden');
   landingUI.classList.add('hidden');
   pauseOverlay.classList.remove('visible');
   endScreen.classList.remove('visible');
