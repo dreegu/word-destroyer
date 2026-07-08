@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Destroyer</title>
+<link rel="icon" href="Fav Icon.png" type="image/png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@900,700,400&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --bg:#f5f5f5; --fg:#111; --muted:#888; --grid:rgba(0,0,0,0.06); --hh:52px; }
+  html,body { width:100%; height:100%; overflow:hidden;
+    font-family:'Switzer','Helvetica Neue',Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--fg); }
+  body::before { content:''; position:fixed; inset:0;
+    background-image:radial-gradient(circle,var(--grid) 1px,transparent 1px);
+    background-size:32px 32px; pointer-events:none; z-index:0; }
+
+  /* ── HEADER ── */
+  #siteHeader { position:fixed; top:0; left:0; right:0; height:var(--hh);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 24px; z-index:100; background:var(--bg);
+    border-bottom:1px solid rgba(0,0,0,0.08); }
+  .logo { font-size:13px; font-weight:900; letter-spacing:-0.03em; text-transform:uppercase; }
+  #pauseBtn { display:none; background:none; border:none; cursor:pointer;
+    font-family:inherit; font-size:11px; font-weight:900; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--muted); padding:6px 0; transition:color 0.15s; }
+  #pauseBtn:hover { color:var(--fg); }
+  #pauseBtn.visible { display:block; }
+
+  /* Sound toggle */
+  #soundBtn { background:none; border:none; cursor:pointer; padding:6px;
+    color:var(--fg); opacity:0.45; transition:opacity 0.2s; line-height:1;
+    display:flex; align-items:center; }
+  #soundBtn:hover { opacity:1; }
+  #soundBtn.muted { opacity:0.2; }
+  #soundBtn svg { width:18px; height:18px; display:block; }
+
+  /* ── CANVAS ── */
+  #gameCanvas { position:fixed; top:var(--hh); left:0;
+    width:100%; height:calc(100vh - var(--hh)); z-index:1; cursor:default; }
+
+  /* ── HIDDEN INPUT (off-screen so Ctrl+A, selection work natively) ── */
+  #hiddenInput { position:fixed; top:-200px; left:0; width:400px; height:50px;
+    opacity:0; font-size:16px; border:none; outline:none; background:transparent; }
+
+  /* ── LANDING UI ── */
+  #landingUI { position:fixed; bottom:60px; left:0; right:0;
+    display:flex; flex-direction:column; align-items:center; gap:12px;
+    z-index:50; transition:opacity 0.25s; }
+  #landingUI.hidden { opacity:0; pointer-events:none; }
+  #charCount { font-size:11px; font-weight:900; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--muted); min-height:16px; }
+  #charCount.warn { color:#c0392b; }
+
+  /* Button hidden until text exists */
+  .btn { display:inline-flex; align-items:center; justify-content:center;
+    padding:16px 44px;
+    font-family:'Switzer','Helvetica Neue',Helvetica,Arial,sans-serif;
+    font-size:13px; font-weight:900; letter-spacing:0.06em;
+    text-transform:uppercase; line-height:0.9;
+    background:var(--fg); color:var(--bg); border:none; cursor:pointer;
+    transition:transform 0.15s, opacity 0.2s, visibility 0s; }
+  .btn:hover { transform:scale(1.02); }
+  .btn:active { transform:scale(0.98); }
+  #startBtn { visibility:hidden; opacity:0; transition:opacity 0.2s, visibility 0s 0.2s; }
+  #startBtn.ready { visibility:visible; opacity:1; transition:opacity 0.2s, visibility 0s; }
+  .btn.outline { background:transparent; color:var(--fg); border:2px solid var(--fg); }
+  .btn.outline:hover { background:var(--fg); color:var(--bg); }
+
+  /* ── PAUSE OVERLAY ── */
+  #pauseOverlay { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
+    background:rgba(245,245,245,0.96);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    z-index:90; opacity:0; pointer-events:none; transition:opacity 0.2s; }
+  #pauseOverlay.visible { opacity:1; pointer-events:all; }
+  .pause-label { font-size:11px; font-weight:900; letter-spacing:0.15em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+  .pause-title { font-size:clamp(40px,6vw,72px); font-weight:900;
+    letter-spacing:-0.03em; text-transform:uppercase; line-height:0.9; margin-bottom:24px; }
+
+  /* ── COMBO ── */
+  #comboDisplay { position:fixed; top:calc(var(--hh) + 16px);
+    left:50%; transform:translateX(-50%);
+    font-size:32px; font-weight:900; letter-spacing:-0.03em; text-transform:uppercase;
+    opacity:0; transition:opacity 0.3s; pointer-events:none; z-index:20; }
+
+  /* ── GAME SCORE + FEED (top-right during game) ── */
+  #gameScoreArea { position:fixed; top:calc(var(--hh) + 16px); right:24px;
+    display:flex; flex-direction:column; align-items:flex-end; gap:4px;
+    pointer-events:none; z-index:60; opacity:0; transition:opacity 0.3s; }
+  #gameScoreArea.visible { opacity:1; }
+  #gameScore { font-size:28px; font-weight:900; letter-spacing:-0.03em; line-height:0.9; }
+  #gameScoreLabel { font-size:9px; font-weight:700; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+  #scoreFeed { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+  .feed-entry { font-size:12px; font-weight:900; letter-spacing:-0.02em;
+    text-transform:uppercase; color:var(--fg);
+    animation:feedSlide 0.12s ease forwards, feedFade 0.4s ease 1s forwards; }
+  @keyframes feedSlide { from{opacity:0;transform:translateX(6px)} to{opacity:1;transform:none} }
+  @keyframes feedFade  { to{opacity:0} }
+
+  /* ── SPLASH SCREEN ── */
+  #splashScreen { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
+    display:flex; align-items:center; justify-content:center;
+    z-index:80; background:var(--bg); transition:opacity 0.35s; }
+  #splashScreen.hidden { opacity:0; pointer-events:none; }
+  .splash-inner { display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .splash-wordmark { font-size:11px; font-weight:900; letter-spacing:0.2em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
+  .splash-title { font-size:clamp(48px,11vw,128px); font-weight:900;
+    letter-spacing:-0.04em; text-transform:uppercase; line-height:0.88; margin-bottom:44px; }
+  .splash-counter-label { font-size:10px; font-weight:700; letter-spacing:0.16em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+  .splash-counter { display:flex; align-items:center; justify-content:center;
+    font-size:clamp(44px,8vw,88px); font-weight:900; letter-spacing:-0.04em;
+    line-height:1; overflow:hidden; height:1.05em; margin-bottom:6px; }
+  .digit-col { display:inline-block; overflow:hidden; height:1em; }
+  .digit-strip { display:flex; flex-direction:column;
+    transition:transform 0.28s cubic-bezier(0.4,0,0.2,1); }
+  .digit-strip span { display:block; height:1em; line-height:1; text-align:center;
+    min-width:0.6em; }
+  .splash-counter-sub { font-size:10px; font-weight:700; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:44px; }
+  #splashBtn { min-width:200px; }
+
+  /* ── END SCREEN ── */
+  #endScreen { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
+    z-index:80; opacity:0; pointer-events:none; transition:opacity 0.4s;
+    overflow-y:auto; background:var(--bg); }
+  #endScreen.visible { opacity:1; pointer-events:all; }
+  .end-layout { display:flex; flex-direction:column; min-height:100%; width:100%; }
+  @media (min-width:700px) {
+    .end-layout { flex-direction:row; max-width:860px; margin:0 auto; }
+  }
+
+  /* Scorecard */
+  .end-card { display:flex; flex-direction:column;
+    padding:32px 28px 24px; border-bottom:1px solid rgba(0,0,0,0.08); }
+  @media (min-width:700px) {
+    .end-card { min-width:300px; max-width:340px; border-bottom:none;
+      border-right:1px solid rgba(0,0,0,0.08); padding:40px 36px; }
+  }
+  .end-eyebrow { font-size:10px; font-weight:900; letter-spacing:0.18em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+  .end-score { font-size:clamp(52px,9vw,96px); font-weight:900;
+    letter-spacing:-0.04em; line-height:0.88; margin-bottom:4px; }
+  .end-score-label { font-size:9px; font-weight:700; letter-spacing:0.15em;
+    text-transform:uppercase; color:var(--muted); }
+  .end-accuracy-label { font-size:11px; font-weight:900; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--muted); margin-top:8px; min-height:18px;
+    opacity:0; transform:translateY(4px);
+    transition:opacity 0.35s ease, transform 0.35s ease; }
+  .end-accuracy-label.visible { opacity:1; transform:translateY(0); }
+  .end-accuracy-label.absorb { opacity:0; transform:translateY(-6px) scale(0.85);
+    transition:opacity 0.45s ease, transform 0.45s ease; }
+
+  .stats-toggle { background:none; border:none; cursor:pointer;
+    font-family:inherit; font-size:10px; font-weight:900; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--muted); padding:14px 0 0;
+    display:flex; align-items:center; gap:5px; transition:color 0.15s; }
+  .stats-toggle:hover { color:var(--fg); }
+  .toggle-arrow { display:inline-block; transition:transform 0.2s; font-style:normal; }
+  .toggle-arrow.open { transform:rotate(180deg); }
+  .end-stats-wrap { overflow:hidden; max-height:0; transition:max-height 0.3s ease; }
+  .end-stats-wrap.open { max-height:220px; }
+  .end-stats { display:flex; flex-wrap:wrap; gap:14px 28px; padding-top:16px; }
+  .stat-block { text-align:left; }
+  .stat-num { font-size:20px; font-weight:900; letter-spacing:-0.03em; line-height:0.9; }
+  .stat-lbl { font-size:9px; font-weight:700; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--muted); margin-top:3px; }
+  .end-buttons { display:flex; gap:10px; flex-wrap:wrap; margin-top:auto; padding-top:28px; }
+  .end-buttons .btn { flex:1; min-width:100px; padding:14px 16px; }
+
+  /* Leaderboard panel */
+  .end-lb { flex:1; display:flex; flex-direction:column; padding:32px 28px 24px; }
+  @media (min-width:700px) { .end-lb { padding:40px 36px; overflow-y:auto; } }
+  .lb-header { font-size:10px; font-weight:900; letter-spacing:0.18em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:20px; }
+  .lb-list { display:flex; flex-direction:column; overflow-y:auto; }
+  @media (max-width:699px) { .lb-list { max-height:260px; } }
+  .lb-row { display:flex; align-items:center; gap:12px;
+    padding:10px 0; border-bottom:1px solid rgba(0,0,0,0.06);
+    font-size:13px; font-weight:900; }
+  .lb-row:last-child { border-bottom:none; }
+  .lb-row.lb-mine { background:var(--fg); color:var(--bg);
+    padding:10px 12px; margin:0 -12px; }
+  .lb-rank { font-size:10px; font-weight:700; letter-spacing:0.06em;
+    color:var(--muted); min-width:26px; flex-shrink:0; }
+  .lb-row.lb-mine .lb-rank { color:rgba(245,245,245,0.55); }
+  .lb-name { flex:1; text-transform:uppercase; letter-spacing:0.05em; }
+  .lb-score { font-size:13px; font-weight:900; letter-spacing:-0.02em;
+    font-variant-numeric:tabular-nums; flex-shrink:0; }
+  .lb-empty { font-size:11px; color:var(--muted); padding:24px 0;
+    letter-spacing:0.06em; text-transform:uppercase; }
+  .lb-loading { font-size:10px; color:var(--muted); padding:20px 0;
+    letter-spacing:0.1em; text-transform:uppercase; }
+
+  /* New high score entry row */
+  .lb-row.lb-entry { flex-direction:column; align-items:stretch;
+    gap:8px; padding:14px 0; }
+  .lb-entry-top { display:flex; align-items:center; gap:10px; }
+  .lb-entry-badge { font-size:9px; font-weight:900; letter-spacing:0.1em;
+    text-transform:uppercase; border:1.5px solid var(--fg); padding:3px 8px;
+    white-space:nowrap; flex-shrink:0; }
+  .lb-entry-score { font-size:13px; font-weight:900; letter-spacing:-0.02em;
+    margin-left:auto; flex-shrink:0; }
+  .lb-initials-row { display:flex; align-items:center; gap:10px; }
+  .lb-initials-label { font-size:9px; font-weight:700; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--muted); flex-shrink:0; }
+  #initialsInput { font-family:inherit; font-size:22px; font-weight:900;
+    letter-spacing:0.15em; text-transform:uppercase; width:76px;
+    border:none; border-bottom:2px solid var(--fg); background:transparent;
+    outline:none; text-align:center; color:var(--fg); padding:2px 0; }
+  #submitInitialsBtn { background:var(--fg); color:var(--bg); border:none;
+    cursor:pointer; font-family:inherit; font-size:10px; font-weight:900;
+    letter-spacing:0.08em; text-transform:uppercase; padding:9px 18px;
+    transition:opacity 0.15s; }
+  #submitInitialsBtn:hover { opacity:0.8; }
+  #submitInitialsBtn:disabled { opacity:0.4; cursor:default; }
+
+  @keyframes popIn { from{transform:scale(0.7);opacity:0} 80%{transform:scale(1.04)} to{transform:scale(1);opacity:1} }
+  .pop-in { animation:popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both; }
+</style>
+</head>
+<body>
+
+<header id="siteHeader">
+  <span class="logo" id="logoBtn" style="cursor:pointer">Word Destroyer</span>
+  <button id="pauseBtn">Pause</button>
+  <button id="soundBtn" title="Toggle sound">
+    <!-- sound-on icon -->
+    <svg id="iconSoundOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+    </svg>
+    <!-- sound-off icon -->
+    <svg id="iconSoundOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <line x1="23" y1="9" x2="17" y2="15"/>
+      <line x1="17" y1="9" x2="23" y2="15"/>
+    </svg>
+  </button>
+</header>
+
+<canvas id="gameCanvas"></canvas>
+<input id="hiddenInput" type="text" maxlength="160"
+  autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+
+<!-- Splash screen -->
+<div id="splashScreen">
+  <div class="splash-inner">
+    <p class="splash-wordmark">Word Destroyer</p>
+    <h1 class="splash-title">Write it.<br>Destroy it.</h1>
+    <p class="splash-counter-label">Messages Destroyed</p>
+    <div class="splash-counter" id="splashCounter"></div>
+    <p class="splash-counter-sub">and counting</p>
+    <button class="btn" id="splashBtn">Start</button>
+  </div>
+</div>
+
+<div id="landingUI" class="hidden">
+  <span id="charCount"></span>
+  <button class="btn" id="startBtn">Start Destroying</button>
+</div>
+
+<div id="comboDisplay"></div>
+
+<!-- Score + feed during gameplay -->
+<div id="gameScoreArea">
+  <div id="gameScore">0</div>
+  <div id="gameScoreLabel">Score</div>
+  <div id="scoreFeed"></div>
+</div>
+
+<!-- Pause overlay -->
+<div id="pauseOverlay">
+  <p class="pause-label">Paused</p>
+  <h2 class="pause-title">Take a<br>breath.</h2>
+  <button class="btn" id="resumeBtn">Resume</button>
+  <button class="btn outline" id="rewriteBtn">Rewrite</button>
+</div>
+
+<!-- End screen -->
+<div id="endScreen">
+  <div class="end-layout">
+    <!-- Scorecard (left on desktop, top on mobile) -->
+    <div class="end-card">
+      <p class="end-eyebrow">Message Destroyed</p>
+      <div class="end-score-label">Your Score</div>
+      <div class="end-score" id="endScore">0</div>
+      <div class="end-accuracy-label" id="endAccuracy"></div>
+      <button class="stats-toggle" id="statsToggle">
+        <span id="statsToggleText">Show Stats</span>
+        <span class="toggle-arrow" id="toggleArrow">↓</span>
+      </button>
+      <div class="end-stats-wrap" id="endStatsWrap">
+        <div class="end-stats" id="endStats"></div>
+      </div>
+      <div class="end-buttons">
+        <button class="btn" id="restartBtn">Destroy Another</button>
+        <button class="btn outline" id="shareBtn">Share</button>
+      </div>
+    </div>
+    <!-- Leaderboard (right on desktop, bottom on mobile) -->
+    <div class="end-lb">
+      <p class="lb-header">Top 10 Scores</p>
+      <div class="lb-list" id="lbList">
+        <p class="lb-loading">Loading...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   WORD DESTROYER
+   ════════════════════════════════════════════════════════════ */
+
+const HEADER_H   = 52;
+const BALL_SPEED = 10;
+const BALL_R     = 8;
+const PADDLE_H   = 14;
+const PADDLE_WR  = 0.13;
+const FONT_FACE  = "'Switzer','Helvetica Neue',Helvetica,Arial,sans-serif";
+const LINE_PAD   = 40; // px from each edge for the underline
+
+// ── Supabase ──────────────────────────────────────────
+const SUPA_URL = 'https://oscdrcrfcyvrjewksert.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zY2RyY3JmY3l2cmpld2tzZXJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5OTI5MjYsImV4cCI6MjA5ODU2ODkyNn0.6BMY6o1lRwDlUU_6b6IiNVLFPDjsnFyQ9V2i4JPFyMQ';
+let sb = null;
+try { sb = supabase.createClient(SUPA_URL, SUPA_KEY); } catch(e) { console.warn('Supabase unavailable'); }
+let totalMessages = 0;
+let leaderboard   = [];
+
+async function sbFetchStats() {
+  if (!sb) { animateSplashCounter(totalMessages || 0); return; }
+  try {
+    const { data } = await sb.from('stats').select('messages_destroyed').eq('id', 'global').single();
+    if (data) { totalMessages = data.messages_destroyed; }
+    animateSplashCounter(totalMessages || 0);
+  } catch(e) { console.warn('Stats fetch:', e); animateSplashCounter(totalMessages || 0); }
+}
+
+async function sbIncrementMessages() {
+  if (!sb) return;
+  try { await sb.rpc('increment_messages'); } catch(e) {}
+}
+
+async function sbFetchLeaderboard() {
+  if (!sb) return;
+  try {
+    const { data } = await sb.from('leaderboard')
+      .select('initials,score').order('score', { ascending:false }).limit(10);
+    leaderboard = data || [];
+  } catch(e) { leaderboard = []; }
+}
+
+async function sbSubmitScore(initials, userScore) {
+  if (!sb) return;
+  try {
+    await sb.from('leaderboard')
+      .insert({ initials: initials.toUpperCase().slice(0,3), score: userScore });
+    await delay(400);
+    await sbFetchLeaderboard();
+  } catch(e) { console.warn('Submit:', e); }
+}
+
+// ── Digit Roller ──────────────────────────────────────
+let digitStrips = [];
+
+function buildDigitRoller(container, numDigits) {
+  container.innerHTML = '';
+  digitStrips = [];
+  for (let i = 0; i < numDigits; i++) {
+    const col = document.createElement('span');
+    col.className = 'digit-col';
+    const strip = document.createElement('span');
+    strip.className = 'digit-strip';
+    for (let d = 0; d <= 9; d++) {
+      const s = document.createElement('span');
+      s.textContent = d;
+      strip.appendChild(s);
+    }
+    col.appendChild(strip);
+    container.appendChild(col);
+    digitStrips.push(strip);
+  }
+}
+
+function setRollerValue(value, instant) {
+  const str = String(Math.max(0, Math.floor(value))).padStart(digitStrips.length, '0');
+  digitStrips.forEach((strip, i) => {
+    const d = parseInt(str[i]) || 0;
+    strip.style.transition = instant ? 'none' : 'transform 0.28s cubic-bezier(0.4,0,0.2,1)';
+    strip.style.transform  = `translateY(-${d * 10}%)`;
+  });
+}
+
+function animateSplashCounter(total) {
+  const startFrom = Math.max(0, total - (3 + Math.floor(Math.random() * 4)));
+  const numDigits = Math.max(String(total).length, 4);
+  const container = document.getElementById('splashCounter');
+  buildDigitRoller(container, numDigits);
+  setRollerValue(startFrom, true);   // instant jump to start
+  let current = startFrom;
+  const tick = () => {
+    current++;
+    setRollerValue(current, false);
+    if (current < total) setTimeout(tick, current >= total - 2 ? 220 : 85);
+  };
+  setTimeout(tick, 400); // short pause before counting starts
+}
+
+// ── DOM ──────────────────────────────────────────────
+const canvas        = document.getElementById('gameCanvas');
+const ctx           = canvas.getContext('2d');
+const hiddenInput   = document.getElementById('hiddenInput');
+const startBtn      = document.getElementById('startBtn');
+const charCountEl   = document.getElementById('charCount');
+const landingUI     = document.getElementById('landingUI');
+const splashScreen  = document.getElementById('splashScreen');
+const splashBtn     = document.getElementById('splashBtn');
+const comboEl       = document.getElementById('comboDisplay');
+const gameScoreArea = document.getElementById('gameScoreArea');
+const gameScoreEl   = document.getElementById('gameScore');
+const scoreFeed     = document.getElementById('scoreFeed');
+const endScreen     = document.getElementById('endScreen');
+const pauseOverlay  = document.getElementById('pauseOverlay');
+const pauseBtn      = document.getElementById('pauseBtn');
+const resumeBtn     = document.getElementById('resumeBtn');
+const rewriteBtn    = document.getElementById('rewriteBtn');
+const restartBtn    = document.getElementById('restartBtn');
+const shareBtn      = document.getElementById('shareBtn');
+const soundBtn      = document.getElementById('soundBtn');
+
+// ── Audio ─────────────────────────────────────────────
+let audioCtx = null;
+let soundEnabled = true;
+function getAC() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// Soft, bubbly/creamy typing thud
+function playTyping() {
+  if (!soundEnabled) return;
+  try {
+    const ac = getAC();
+    const osc  = ac.createOscillator();
+    const gain = ac.createGain();
+    const now  = ac.currentTime;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(130 + Math.random() * 50, now);
+    osc.frequency.exponentialRampToValueAtTime(60, now + 0.07);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.14, now + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.start(now); osc.stop(now + 0.09);
+  } catch(e) {}
+}
+
+// Hollow plastic click — domino/letter-piece break
+function playBreak() {
+  if (!soundEnabled) return;
+  try {
+    const ac  = getAC();
+    const now = ac.currentTime;
+    const len = Math.ceil(ac.sampleRate * 0.06);
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d   = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1);
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 900 + Math.random() * 400; bp.Q.value = 3;
+    const hp = ac.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 400;
+    const gain = ac.createGain();
+    gain.gain.setValueAtTime(0.22, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+    src.connect(bp); bp.connect(hp); hp.connect(gain); gain.connect(ac.destination);
+    src.start(now); src.stop(now + 0.06);
+  } catch(e) {}
+}
+
+const iconSoundOn  = document.getElementById('iconSoundOn');
+const iconSoundOff = document.getElementById('iconSoundOff');
+soundBtn.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  iconSoundOn.style.display  = soundEnabled ? 'block' : 'none';
+  iconSoundOff.style.display = soundEnabled ? 'none'  : 'block';
+  soundBtn.classList.toggle('muted', !soundEnabled);
+  if (soundEnabled && audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+});
+
+// ── State ────────────────────────────────────────────
+let state = 'splash';
+let W, H, fontSize, lineH, fixedLineY;
+let paddle, balls, bricks, particles;
+let score, bounces, ballsLaunched, maxCombo, combo, comboTimer;
+let lettersDestroyed, wordsDestroyed;
+let totalLetters, totalShots, goodShots, paddleHits, finalScore;
+let animId;
+let shakeTime = 0, shakeMag = 0;
+let mouseX = 0;
+let comboHideTimer;
+let inputFocused = false;
+let cursorVisible = true, cursorTimer = 0;
+let selStart = 0, selEnd = 0;
+
+// ── Resize ───────────────────────────────────────────
+let DPR = 1;
+
+// Returns visible height excluding soft keyboard (via visualViewport when available)
+function getVisibleH() {
+  return (window.visualViewport ? window.visualViewport.height : window.innerHeight) - HEADER_H;
+}
+
+function updateFixedLineY() {
+  fixedLineY = Math.round(getVisibleH() * 0.45);
+}
+
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight - HEADER_H;
+  canvas.width  = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+  fontSize = clamp(Math.floor(W / 16), 28, 62);
+  lineH    = fontSize * 1.25;
+  updateFixedLineY();
+
+  if (state === 'playing' && paddle) {
+    paddle.w = W * PADDLE_WR;
+    paddle.x = clamp(paddle.x, paddle.w/2, W - paddle.w/2);
+    paddle.y = H - 60;
+  }
+}
+
+window.addEventListener('resize', () => { resize(); if (state==='playing') layoutBricks(); });
+
+// Reposition text when soft keyboard opens or closes
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', updateFixedLineY);
+}
+
+// ── Text wrap ────────────────────────────────────────
+function getLines(text) {
+  if (!text) return [];
+  ctx.font = `900 ${fontSize}px ${FONT_FACE}`;
+  const areaW = W * 0.82;
+  const words = text.split(/\s+/);
+  const lines = [];
+  let cur = '';
+
+  function flushCur() { if (cur) { lines.push(cur); cur = ''; } }
+
+  words.forEach(w => {
+    if (ctx.measureText(w).width > areaW) {
+      // Word is too wide on its own — split at character boundaries
+      flushCur();
+      let chunk = '';
+      for (const ch of w) {
+        const test = chunk + ch;
+        if (ctx.measureText(test).width > areaW && chunk) {
+          lines.push(chunk);
+          chunk = ch;
+        } else {
+          chunk = test;
+        }
+      }
+      cur = chunk; // remainder starts the next line
+    } else {
+      const test = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(test).width > areaW && cur) { flushCur(); cur = w; }
+      else cur = test;
+    }
+  });
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+// ── Character rectangles for selection highlight ──────
+// Returns array[charIndexInText] = {x, y, w, h} in canvas coords
+function buildCharRects(text, lines) {
+  ctx.font = `900 ${fontSize}px ${FONT_FACE}`;
+  const rects = new Array(text.length).fill(null);
+  let origIdx = 0;
+
+  lines.forEach((line, li) => {
+    const baselineY = fixedLineY - (lines.length - 1 - li) * lineH;
+    const rectY = baselineY - fontSize * 0.86;
+    const rectH = fontSize * 0.92;
+    const lineW = ctx.measureText(line).width;
+    let cx = (W - lineW) / 2;
+
+    for (let ci = 0; ci < line.length; ci++) {
+      const ch = line[ci];
+      const cw = ctx.measureText(ch).width;
+      // Advance origIdx past any chars in original that don't match (wrap spaces)
+      while (origIdx < text.length && text[origIdx] !== ch) {
+        origIdx++;
+      }
+      if (origIdx < text.length) {
+        rects[origIdx] = { x: cx, y: rectY, w: cw, h: rectH };
+        origIdx++;
+      }
+      cx += cw;
+    }
+    // skip the wrap-space after each line (except last)
+    if (li < lines.length - 1) {
+      while (origIdx < text.length && text[origIdx] === ' ') origIdx++;
+    }
+  });
+
+  return rects;
+}
+
+// ── Input handling ───────────────────────────────────
+hiddenInput.addEventListener('focus',  () => { inputFocused = true;  canvas.style.cursor = 'text'; });
+hiddenInput.addEventListener('blur',   () => { inputFocused = false; canvas.style.cursor = 'default'; });
+
+hiddenInput.addEventListener('input', () => {
+  const pos = hiddenInput.selectionStart;
+  hiddenInput.value = hiddenInput.value.toUpperCase();
+  hiddenInput.setSelectionRange(pos, pos);
+  const len = hiddenInput.value.length;
+  const rem = 160 - len;
+  charCountEl.textContent  = rem <= 15 ? `${rem} LEFT` : '';
+  charCountEl.classList.toggle('warn', rem <= 5);
+  startBtn.classList.toggle('ready', len > 0);
+  playTyping();
+});
+
+hiddenInput.addEventListener('paste', () => {
+  setTimeout(() => {
+    hiddenInput.value = hiddenInput.value.toUpperCase();
+    hiddenInput.dispatchEvent(new Event('input'));
+  }, 0);
+});
+
+// Track selection for highlight
+function updateSelection() {
+  selStart = hiddenInput.selectionStart ?? 0;
+  selEnd   = hiddenInput.selectionEnd   ?? 0;
+}
+hiddenInput.addEventListener('keyup',    updateSelection);
+hiddenInput.addEventListener('mouseup',  updateSelection);
+hiddenInput.addEventListener('select',   updateSelection);
+document.addEventListener('selectionchange', () => {
+  if (document.activeElement === hiddenInput) updateSelection();
+});
+
+canvas.addEventListener('click',      () => { if (state === 'landing') hiddenInput.focus(); });
+canvas.addEventListener('touchstart', () => { if (state === 'landing') hiddenInput.focus(); }, { passive: true });
+
+window.addEventListener('mousemove', e => { mouseX = e.clientX; });
+window.addEventListener('touchmove', e => {
+  e.preventDefault(); mouseX = e.touches[0].clientX;
+}, { passive: false });
+
+// ── Landing draw ─────────────────────────────────────
+function drawLanding() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const text  = hiddenInput.value;
+  const lines = getLines(text);
+
+  // Cursor blink — only when focused
+  if (inputFocused) {
+    cursorTimer++;
+    if (cursorTimer > 28) { cursorVisible = !cursorVisible; cursorTimer = 0; }
+  } else {
+    cursorVisible = false;
+    cursorTimer   = 0;
+  }
+
+  ctx.font = `900 ${fontSize}px ${FONT_FACE}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+
+  if (!text) {
+    // Placeholder — hidden when focused
+    if (!inputFocused) {
+      ctx.fillStyle = 'rgba(17,17,17,0.18)';
+      ctx.fillText('WRITE IT. DESTROY IT.', W/2, fixedLineY);
+    }
+    if (inputFocused && cursorVisible) drawCursor(W/2, fixedLineY);
+  } else {
+    // Selection highlight (drawn first, behind text)
+    if (inputFocused && selStart < selEnd) {
+      const charRects = buildCharRects(text, lines);
+      ctx.fillStyle = 'rgba(17,17,17,0.18)';
+      for (let i = selStart; i < selEnd; i++) {
+        const r = charRects[i];
+        if (r) ctx.fillRect(r.x - 1, r.y, r.w + 2, r.h);
+      }
+    }
+
+    // Text — last line baseline anchored to fixedLineY
+    ctx.fillStyle = '#111';
+    lines.forEach((line, i) => {
+      const y = fixedLineY - (lines.length - 1 - i) * lineH;
+      ctx.fillText(line, W/2, y);
+    });
+
+    // Cursor at end of last line
+    if (inputFocused && cursorVisible && selStart === selEnd) {
+      const lastLine = lines[lines.length - 1];
+      const lw = ctx.measureText(lastLine).width;
+      drawCursor(W/2 + lw/2 + 4, fixedLineY);
+    }
+  }
+
+  // Fixed underline — full width minus padding, always same position
+  const uly = fixedLineY + 14;
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(LINE_PAD, uly);
+  ctx.lineTo(W - LINE_PAD, uly);
+  ctx.stroke();
+}
+
+function drawCursor(x, baselineY) {
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x, baselineY - fontSize * 0.82);
+  ctx.lineTo(x, baselineY + fontSize * 0.12);
+  ctx.stroke();
+}
+
+// ═══════════════════════════════════════
+//   START GAME
+// ═══════════════════════════════════════
+splashBtn.addEventListener('click', goToLanding);
+document.getElementById('logoBtn').addEventListener('click', goToSplash);
+startBtn.addEventListener('click', startGame);
+hiddenInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && hiddenInput.value.trim()) startGame();
+});
+
+function startGame() {
+  const msg = hiddenInput.value.trim().toUpperCase();
+  if (!msg) return;
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+  state = 'playing';
+  sbIncrementMessages();
+  hiddenInput.blur(); // dismiss keyboard, remove text cursor
+  landingUI.classList.add('hidden');
+  pauseBtn.classList.add('visible');
+  gameScoreArea.classList.add('visible');
+  gameScoreEl.textContent = '0';
+
+  score = 0; bounces = 0; ballsLaunched = 1;
+  maxCombo = 1; combo = 1; comboTimer = 0;
+  lettersDestroyed = 0; wordsDestroyed = 0;
+  totalLetters = 0; totalShots = 0; goodShots = 0; paddleHits = 0;
+
+  paddle = { x: W/2, y: H-60, w: W*PADDLE_WR, h: PADDLE_H };
+  balls = [spawnBall(W/2, paddle.y - BALL_R - 2)];
+  particles = [];
+
+  layoutBricks();
+  totalLetters = bricks.length;
+  if (animId) cancelAnimationFrame(animId);
+  lastTimestamp = 0;
+  loop();
+}
+
+// ═══════════════════════════════════════
+//   BRICK LAYOUT (matches drawLanding exactly)
+// ═══════════════════════════════════════
+function layoutBricks() {
+  bricks = [];
+  const text  = hiddenInput.value.trim().toUpperCase();
+  const lines = getLines(text);
+  ctx.font = `900 ${fontSize}px ${FONT_FACE}`;
+  let wordIdxGlobal = 0;
+
+  lines.forEach((line, li) => {
+    const baselineY = fixedLineY - (lines.length - 1 - li) * lineH;
+    const midY      = baselineY - fontSize * 0.35;
+    const lineW     = ctx.measureText(line).width;
+    let   charX     = (W - lineW) / 2;
+
+    line.split(/\s+/).forEach(word => {
+      const wIdx = wordIdxGlobal++;
+      for (let ci = 0; ci < word.length; ci++) {
+        const ch = word[ci];
+        const cw = ctx.measureText(ch).width;
+        bricks.push({ char:ch, wordIdx:wIdx, x:charX+cw/2, y:midY,
+          w:cw+2, h:fontSize*0.9, dead:false,
+          flashTimer:0, deathTimer:-1, fontSize });
+        charX += cw;
+      }
+      charX += ctx.measureText(' ').width;
+    });
+  });
+}
+
+// ═══════════════════════════════════════
+//   PAUSE
+// ═══════════════════════════════════════
+pauseBtn.addEventListener('click', () => {
+  if (state !== 'playing') return;
+  state = 'paused';
+  pauseOverlay.classList.add('visible');
+  cancelAnimationFrame(animId);
+});
+resumeBtn.addEventListener('click', () => {
+  if (state !== 'paused') return;
+  state = 'playing';
+  pauseOverlay.classList.remove('visible');
+  loop();
+});
+rewriteBtn.addEventListener('click', goToLanding);
+
+function goToSplash() {
+  cancelAnimationFrame(animId);
+  state = 'splash';
+  splashScreen.classList.remove('hidden');
+  landingUI.classList.add('hidden');
+  pauseOverlay.classList.remove('visible');
+  endScreen.classList.remove('visible');
+  pauseBtn.classList.remove('visible');
+  gameScoreArea.classList.remove('visible');
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  sbFetchStats();
+}
+
+function goToLanding() {
+  cancelAnimationFrame(animId);
+  state = 'landing';
+  splashScreen.classList.add('hidden');
+  pauseOverlay.classList.remove('visible');
+  endScreen.classList.remove('visible');
+  pauseBtn.classList.remove('visible');
+  gameScoreArea.classList.remove('visible');
+  landingUI.classList.remove('hidden');
+  scoreFeed.innerHTML = '';
+  comboEl.style.opacity = '0';
+  hiddenInput.value = '';
+  startBtn.classList.remove('ready');
+  charCountEl.textContent = '';
+  cursorVisible = true; cursorTimer = 0;
+  selStart = 0; selEnd = 0;
+
+  if (animId) cancelAnimationFrame(animId);
+  (function ll() { if (state !== 'landing') return; drawLanding(); animId = requestAnimationFrame(ll); })();
+}
+
+// ═══════════════════════════════════════
+//   BALL
+// ═══════════════════════════════════════
+function spawnBall(x, y) {
+  const angle = -Math.PI/2 + (Math.random()-0.5) * (Math.PI/2.5);
+  return { x, y, vx: Math.cos(angle)*BALL_SPEED, vy: Math.sin(angle)*BALL_SPEED,
+    r: BALL_R, trail: [], shotActive: true, hitThisShot: false };
+}
+
+// ═══════════════════════════════════════
+//   LOOP
+// ═══════════════════════════════════════
+let lastTimestamp = 0;
+function loop(ts = 0) {
+  // dt: time since last frame, normalised to 60fps = 1.0
+  // Capped at 2.5 to prevent tunnelling on very slow frames
+  const dt = lastTimestamp ? Math.min((ts - lastTimestamp) / (1000 / 60), 2.5) : 1;
+  lastTimestamp = ts;
+  try { update(dt); draw(); } catch(e) { console.error('Loop:', e); }
+  animId = requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════
+//   UPDATE
+// ═══════════════════════════════════════
+function update(dt = 1) {
+  if (state !== 'playing') return;
+
+  paddle.x += (clamp(mouseX, paddle.w/2, W-paddle.w/2) - paddle.x) * 0.25 * dt;
+  comboTimer -= dt;
+  if (comboTimer <= 0) { showCombo(false); } // hide display; combo value persists until ball drop
+  if (shakeTime > 0) shakeTime -= dt;
+
+  for (let i = balls.length-1; i >= 0; i--) {
+    const b = balls[i];
+    b.trail.push({ x:b.x, y:b.y });
+    if (b.trail.length > 8) b.trail.shift();
+    b.x += b.vx * dt; b.y += b.vy * dt;
+
+    if (b.x - b.r < 0)  { b.x = b.r;     b.vx =  Math.abs(b.vx); }
+    if (b.x + b.r > W)  { b.x = W-b.r;   b.vx = -Math.abs(b.vx); }
+    if (b.y - b.r < 0)  { b.y = b.r;     b.vy =  Math.abs(b.vy); }
+
+    if (b.y - b.r > H+40) {
+      if (b.shotActive) { totalShots++; if (b.hitThisShot) goodShots++; }
+      balls.splice(i,1);
+      if (balls.length === 0) {
+        balls.push(spawnBall(paddle.x, paddle.y-BALL_R-2));
+        ballsLaunched++;
+        combo = 1; comboTimer = 0; showCombo(false);
+      }
+      continue;
+    }
+
+    // Paddle
+    if (b.vy > 0
+      && b.y+b.r >= paddle.y-paddle.h/2
+      && b.y+b.r <= paddle.y+paddle.h/2+6
+      && b.x >= paddle.x-paddle.w/2
+      && b.x <= paddle.x+paddle.w/2) {
+      b.vy = -Math.abs(b.vy);
+      const rel = (b.x-paddle.x)/(paddle.w/2);
+      b.vx = rel*BALL_SPEED*1.1;
+      const spd = Math.hypot(b.vx, b.vy);
+      b.vx = b.vx/spd*BALL_SPEED; b.vy = b.vy/spd*BALL_SPEED;
+      if (b.shotActive) { totalShots++; if (b.hitThisShot) goodShots++; }
+      paddleHits++; bounces++;
+      b.hitThisShot = false; b.shotActive = true;
+    }
+
+    // Bricks
+    for (let j = bricks.length-1; j >= 0; j--) {
+      const br = bricks[j];
+      if (br.dead) continue;
+      const nx = clamp(b.x, br.x-br.w/2, br.x+br.w/2);
+      const ny = clamp(b.y, br.y-br.h/2, br.y+br.h/2);
+      const dx = b.x-nx, dy = b.y-ny;
+      if (dx*dx+dy*dy < b.r*b.r) {
+        if (Math.abs(dx) > Math.abs(dy)) b.vx *= -1; else b.vy *= -1;
+        br.flashTimer = 5; bounces++;
+        combo++; comboTimer = 90;
+        if (combo > maxCombo) maxCombo = combo;
+        showCombo(true);
+        b.hitThisShot = true;
+        const pts = Math.round(combo * 1000 / Math.max(1, totalLetters));
+        score += pts;
+        addFeed(`+${pts.toLocaleString()}`);
+        updateScore();
+        br.dead = true; br.deathTimer = 0;
+        lettersDestroyed++;
+        burst(br.x, br.y, 10);
+        shake(3, 5);
+        playBreak();
+        checkWord(br.wordIdx);
+        break;
+      }
+    }
+  }
+
+  for (let i = particles.length-1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.18 * dt; p.life -= dt;
+    if (p.life <= 0) particles.splice(i,1);
+  }
+
+  bricks.forEach(br => {
+    if (br.deathTimer >= 0 && br.deathTimer < 18) br.deathTimer += dt;
+    if (br.flashTimer > 0) br.flashTimer -= dt;
+  });
+
+  if (state === 'playing' && bricks.length > 0 && bricks.every(b => b.dead)) {
+    state = 'ending'; setTimeout(endGame, 700);
+  }
+}
+
+function checkWord(wIdx) {
+  if (bricks.filter(b => b.wordIdx === wIdx).every(b => b.dead)) {
+    wordsDestroyed++;
+    addFeed('WORD!');
+    shake(5, 8);
+  }
+}
+
+// ═══════════════════════════════════════
+//   DRAW
+// ═══════════════════════════════════════
+function draw() {
+  if (state === 'landing') { drawLanding(); return; }
+  if (state === 'splash' || state === 'paused' || state === 'ending' || state === 'ended') return;
+
+  // Re-apply DPR scale (ctx.save/restore below will nest inside this)
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.save();
+  if (shakeTime > 0) {
+    const m = shakeMag*0.35;
+    ctx.translate((Math.random()-0.5)*m, (Math.random()-0.5)*m);
+  }
+  ctx.clearRect(-20,-20,W+40,H+40);
+
+  bricks.forEach(br => {
+    if (br.dead && br.deathTimer < 0) return;
+    const t = br.dead ? clamp(br.deathTimer/15,0,1) : 0;
+    ctx.save();
+    ctx.translate(br.x, br.y);
+    ctx.scale(1-t*0.7, 1-t*0.7);
+    ctx.globalAlpha = br.dead ? clamp(1-t*1.6,0,1) : 1;
+    const flash = br.flashTimer/5;
+    ctx.font = `900 ${br.fontSize}px ${FONT_FACE}`;
+    ctx.fillStyle = flash > 0 ? `rgba(17,17,17,${1-flash*0.8})` : '#111';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(br.char, 0, 0);
+    ctx.restore();
+  });
+
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.life/p.maxLife;
+    ctx.fillStyle = p.col;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r*(p.life/p.maxLife), 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // Paddle
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  rrect(ctx, paddle.x-paddle.w/2, paddle.y-paddle.h/2, paddle.w, paddle.h, paddle.h/2);
+  ctx.fill();
+
+  // Balls
+  balls.forEach(b => {
+    b.trail.forEach((pt,i) => {
+      ctx.save();
+      ctx.globalAlpha = (i/b.trail.length)*0.13;
+      ctx.fillStyle = '#111';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, b.r*(i/b.trail.length), 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    });
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════
+//   EFFECTS
+// ═══════════════════════════════════════
+function burst(x, y, n) {
+  for (let i = 0; i < n; i++) {
+    const a = (i/n)*Math.PI*2 + Math.random()*0.5;
+    const s = 1.5 + Math.random()*3.5;
+    particles.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s-1.5,
+      r:1.5+Math.random()*2.5, life:20+Math.random()*15, maxLife:35,
+      col:Math.random()>0.4 ? '#111' : '#999' });
+  }
+}
+
+function addFeed(text) {
+  const el = document.createElement('div');
+  el.className = 'feed-entry'; el.textContent = text;
+  scoreFeed.prepend(el);
+  setTimeout(() => el.remove(), 1600);
+}
+
+function shake(mag, dur) { if (mag > shakeMag) { shakeMag = mag; shakeTime = dur; } }
+
+function showCombo(on) {
+  if (on && combo > 1) {
+    comboEl.textContent = `×${combo}`; comboEl.style.opacity = '1';
+    clearTimeout(comboHideTimer);
+    comboHideTimer = setTimeout(() => comboEl.style.opacity='0', 1200);
+  } else comboEl.style.opacity = '0';
+}
+
+function updateScore() { gameScoreEl.textContent = score.toLocaleString(); }
+
+// ═══════════════════════════════════════
+//   END
+// ═══════════════════════════════════════
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function animateScoreRoll(el, from, to, duration) {
+  return new Promise(resolve => {
+    const start = performance.now();
+    function step(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = Math.round(from + (to - from) * eased).toLocaleString();
+      if (t < 1) requestAnimationFrame(step);
+      else resolve();
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+async function endGame() {
+  state = 'ended';
+  cancelAnimationFrame(animId);
+  pauseBtn.classList.remove('visible');
+  gameScoreArea.classList.remove('visible');
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const accuracy = totalShots > 0 ? Math.round(goodShots / totalShots * 100) : 100;
+  finalScore = score + Math.round(score * accuracy / 100);
+
+  const endScoreEl    = document.getElementById('endScore');
+  const endAccuracyEl = document.getElementById('endAccuracy');
+
+  // Show base score
+  endScoreEl.textContent = score.toLocaleString();
+  endAccuracyEl.classList.remove('visible', 'absorb');
+
+  const stats = [
+    { num:lettersDestroyed,           lbl:'Letters' },
+    { num:wordsDestroyed,             lbl:'Words' },
+    { num:`×${maxCombo}`,             lbl:'Max Combo' },
+    { num:ballsLaunched,              lbl:'Balls Used' },
+    { num:`${accuracy}%`,             lbl:'Accuracy' },
+    { num:bounces.toLocaleString(),   lbl:'Bounces' },
+  ];
+  document.getElementById('endStats').innerHTML = stats.map((s,i) => `
+    <div class="stat-block pop-in" style="animation-delay:${i*60}ms">
+      <div class="stat-num">${s.num}</div>
+      <div class="stat-lbl">${s.lbl}</div>
+    </div>`).join('');
+
+  // Stats toggle
+  const statsToggleBtn  = document.getElementById('statsToggle');
+  const endStatsWrap    = document.getElementById('endStatsWrap');
+  const toggleArrow     = document.getElementById('toggleArrow');
+  const statsToggleText = document.getElementById('statsToggleText');
+  statsToggleBtn.onclick = () => {
+    const open = endStatsWrap.classList.toggle('open');
+    toggleArrow.classList.toggle('open', open);
+    statsToggleText.textContent = open ? 'Hide Stats' : 'Show Stats';
+  };
+
+  endScreen.classList.add('visible');
+
+  // Accuracy absorption animation
+  if (accuracy < 100 && score > 0) {
+    await delay(600);
+    endAccuracyEl.textContent = `+${accuracy}% accuracy`;
+    endAccuracyEl.classList.add('visible');
+    await delay(900);
+    await animateScoreRoll(endScoreEl, score, finalScore, 700);
+    await delay(400);
+    endAccuracyEl.classList.remove('visible');
+    endAccuracyEl.classList.add('absorb');
+    await delay(500);
+    endAccuracyEl.classList.remove('absorb');
+  } else {
+    endScoreEl.textContent = finalScore.toLocaleString();
+  }
+
+  // Fetch + render leaderboard
+  if (sb) {
+    document.getElementById('lbList').innerHTML = '<p class="lb-loading">Loading...</p>';
+    await sbFetchLeaderboard();
+    renderLeaderboard(finalScore);
+  } else {
+    document.getElementById('lbList').innerHTML = '<p class="lb-empty">Leaderboard unavailable offline.</p>';
+  }
+}
+
+function renderLeaderboard(userScore) {
+  const list = document.getElementById('lbList');
+
+  // Does user qualify for top 10?
+  const qualifies = leaderboard.length < 10
+    || userScore > (leaderboard[leaderboard.length - 1]?.score ?? 0);
+
+  // Where does user slot in?
+  let insertAt = leaderboard.findIndex(e => userScore > e.score);
+  if (insertAt === -1) insertAt = leaderboard.length;
+
+  let html = '';
+
+  // Build merged rows (up to 10 visible)
+  let boardIdx = 0, rowNum = 0;
+
+  while (rowNum < 10 && (boardIdx < leaderboard.length || (qualifies && insertAt === boardIdx))) {
+    rowNum++;
+
+    if (qualifies && boardIdx === insertAt) {
+      // Player's new-high-score entry row
+      html += `
+        <div class="lb-row lb-entry">
+          <div class="lb-entry-top">
+            <span class="lb-rank">#${rowNum}</span>
+            <span class="lb-entry-badge">New High Score</span>
+            <span class="lb-entry-score">${userScore.toLocaleString()}</span>
+          </div>
+          <div class="lb-initials-row">
+            <span class="lb-initials-label">Your initials</span>
+            <input id="initialsInput" maxlength="3" autocomplete="off"
+              autocorrect="off" spellcheck="false" placeholder="AAA">
+            <button id="submitInitialsBtn">Save</button>
+          </div>
+        </div>`;
+      insertAt = -1; // mark placed
+    } else {
+      if (boardIdx >= leaderboard.length) break;
+      const e = leaderboard[boardIdx++];
+      html += `<div class="lb-row">
+        <span class="lb-rank">#${rowNum}</span>
+        <span class="lb-name">${e.initials}</span>
+        <span class="lb-score">${e.score.toLocaleString()}</span>
+      </div>`;
+    }
+  }
+
+  if (!html) {
+    html = '<p class="lb-empty">No scores yet — yours could be first.</p>';
+  }
+
+  list.innerHTML = html;
+
+  if (qualifies) {
+    const input = document.getElementById('initialsInput');
+    const btn   = document.getElementById('submitInitialsBtn');
+    if (input) {
+      input.addEventListener('input', () => { input.value = input.value.toUpperCase(); });
+      setTimeout(() => input.focus(), 50);
+    }
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        const initials = (input?.value || '').trim();
+        if (!initials) { input?.focus(); return; }
+        btn.textContent = '...'; btn.disabled = true;
+        await sbSubmitScore(initials, userScore);
+        renderLeaderboardFinal(userScore, initials);
+      });
+    }
+  }
+}
+
+function renderLeaderboardFinal(userScore, initials) {
+  const list = document.getElementById('lbList');
+  // If fetch failed but we know the user submitted, show their entry at minimum
+  const board = leaderboard.length
+    ? leaderboard
+    : [{ initials: initials.toUpperCase().slice(0,3), score: userScore }];
+  let html = '';
+  board.forEach((e, i) => {
+    const mine = e.initials.toUpperCase() === initials.toUpperCase() && e.score === userScore;
+    html += `<div class="lb-row${mine ? ' lb-mine' : ''}">
+      <span class="lb-rank">#${i+1}</span>
+      <span class="lb-name">${e.initials}</span>
+      <span class="lb-score">${e.score.toLocaleString()}</span>
+    </div>`;
+  });
+  list.innerHTML = html;
+  const mineRow = list.querySelector('.lb-mine');
+  if (mineRow) mineRow.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+restartBtn.addEventListener('click', goToLanding);
+shareBtn.addEventListener('click', () => {
+  const url  = window.location.href;
+  const text = `I just destroyed my words on Word Destroyer! Score: ${(finalScore||score).toLocaleString()} · ${lettersDestroyed} letters · max ×${maxCombo}\n${url}`;
+  if (navigator.share) navigator.share({ title:'Word Destroyer', text, url }).catch(()=>{});
+  else navigator.clipboard.writeText(text).then(() => {
+    shareBtn.textContent = 'Copied!';
+    setTimeout(() => shareBtn.textContent = 'Share', 2000);
+  });
+});
+
+// ═══════════════════════════════════════
+//   UTILS
+// ═══════════════════════════════════════
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function rrect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w/2, h/2);
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+}
+
+// ── Boot ─────────────────────────────
+resize();
+sbFetchStats(); // fetch counter → animates into splash
+// Canvas loop starts only when user moves to landing
+
+</script>
+</body>
+</html>
