@@ -185,7 +185,7 @@
   @media (min-width:700px) { .end-lb { padding:40px 36px; overflow-y:auto; } }
   #lbScreen { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    background:var(--bg); overflow-y:auto; }
+    background:var(--bg); overflow-y:auto; z-index:80; }
   #lbScreen.hidden { display:none; }
   .lb-page-tagline { font-size:13px; color:var(--muted); text-align:center;
     margin-bottom:28px; line-height:1.6; }
@@ -278,7 +278,6 @@
 
 <div id="lbScreen" class="hidden">
   <div class="splash-inner">
-    <p class="splash-wordmark">Word Destroyer</p>
     <p class="lb-page-tagline">Aim for a high score.<br>Destroying things is fun&nbsp;:)</p>
     <div class="lb-page-list lb-list" id="lbPageList"><p class="lb-loading">Loading...</p></div>
     <button class="splash-lb-link" id="lbBackBtn" style="margin-top:32px">← Back</button>
