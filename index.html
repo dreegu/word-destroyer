@@ -112,18 +112,6 @@
     text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
   .splash-title { font-size:clamp(48px,11vw,128px); font-weight:900;
     letter-spacing:-0.04em; text-transform:uppercase; line-height:0.88; margin-bottom:44px; }
-  .splash-counter-label { font-size:10px; font-weight:700; letter-spacing:0.16em;
-    text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
-  .splash-counter { display:flex; align-items:center; justify-content:center;
-    font-size:clamp(44px,8vw,88px); font-weight:900; letter-spacing:-0.04em;
-    line-height:1; overflow:hidden; height:1.05em; margin-bottom:6px; }
-  .digit-col { display:inline-block; overflow:hidden; height:1em; }
-  .digit-strip { display:flex; flex-direction:column;
-    transition:transform 0.28s cubic-bezier(0.4,0,0.2,1); }
-  .digit-strip span { display:block; height:1em; line-height:1; text-align:center;
-    min-width:0.6em; }
-  .splash-counter-sub { font-size:10px; font-weight:700; letter-spacing:0.12em;
-    text-transform:uppercase; color:var(--muted); margin-bottom:44px; }
   #splashBtn { min-width:200px; }
   .splash-lb-link { background:none; border:none; cursor:pointer; margin-top:16px;
     font-family:'Switzer','Helvetica Neue',Helvetica,Arial,sans-serif;
@@ -268,9 +256,6 @@
   <div class="splash-inner">
     <p class="splash-wordmark">Word Destroyer</p>
     <h1 class="splash-title">Write it.<br>Destroy it.</h1>
-    <p class="splash-counter-label">Messages Destroyed</p>
-    <div class="splash-counter" id="splashCounter"></div>
-    <p class="splash-counter-sub">and counting</p>
     <button class="btn" id="splashBtn">Start</button>
     <button class="splash-lb-link" id="lbPageBtn">View Leaderboard</button>
   </div>
@@ -351,31 +336,22 @@ const FONT_FACE  = "'Switzer','Helvetica Neue',Helvetica,Arial,sans-serif";
 const LINE_PAD   = 40; // px from each edge for the underline
 
 // ── Supabase ──────────────────────────────────────────
-const SUPA_URL = 'https://oscdrcrfcyvrjewksert.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zY2RyY3JmY3l2cmpld2tzZXJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5OTI5MjYsImV4cCI6MjA5ODU2ODkyNn0.6BMY6o1lRwDlUU_6b6IiNVLFPDjsnFyQ9V2i4JPFyMQ';
+const SUPA_URL = 'https://aonhttuukxdsoiojxxvk.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmh0dHV1a3hkc29pb2p4eHZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNzA2MjYsImV4cCI6MjA5OTk0NjYyNn0.kPsPu5HtLM6_QEftbko0-HLGUBmd6q0hGWUwnv_ClRU';
 let sb = null;
 try { sb = supabase.createClient(SUPA_URL, SUPA_KEY); } catch(e) { console.warn('Supabase unavailable'); }
-let totalMessages = 0;
 let leaderboard   = [];
 
-async function sbFetchStats() {
-  if (!sb) { animateSplashCounter(totalMessages || 0); return; }
-  try {
-    const { data } = await sb.from('stats').select('messages_destroyed').eq('id', 'global').single();
-    if (data) { totalMessages = data.messages_destroyed; }
-    animateSplashCounter(totalMessages || 0);
-  } catch(e) { console.warn('Stats fetch:', e); animateSplashCounter(totalMessages || 0); }
-}
-
+// Internal-only counter: increments on game start, not displayed anywhere.
 async function sbIncrementMessages() {
   if (!sb) return;
-  try { await sb.rpc('increment_messages'); } catch(e) {}
+  try { await sb.rpc('increment_wd_messages'); } catch(e) {}
 }
 
 async function sbFetchLeaderboard() {
   if (!sb) return;
   try {
-    const { data } = await sb.from('leaderboard')
+    const { data } = await sb.from('wd_leaderboard')
       .select('initials,score').order('score', { ascending:false }).limit(10);
     leaderboard = data || [];
   } catch(e) { leaderboard = []; }
@@ -384,57 +360,11 @@ async function sbFetchLeaderboard() {
 async function sbSubmitScore(initials, userScore) {
   if (!sb) return;
   try {
-    await sb.from('leaderboard')
+    await sb.from('wd_leaderboard')
       .insert({ initials: initials.toUpperCase().slice(0,3), score: userScore });
     await delay(400);
     await sbFetchLeaderboard();
   } catch(e) { console.warn('Submit:', e); }
-}
-
-// ── Digit Roller ──────────────────────────────────────
-let digitStrips = [];
-
-function buildDigitRoller(container, numDigits) {
-  container.innerHTML = '';
-  digitStrips = [];
-  for (let i = 0; i < numDigits; i++) {
-    const col = document.createElement('span');
-    col.className = 'digit-col';
-    const strip = document.createElement('span');
-    strip.className = 'digit-strip';
-    for (let d = 0; d <= 9; d++) {
-      const s = document.createElement('span');
-      s.textContent = d;
-      strip.appendChild(s);
-    }
-    col.appendChild(strip);
-    container.appendChild(col);
-    digitStrips.push(strip);
-  }
-}
-
-function setRollerValue(value, instant) {
-  const str = String(Math.max(0, Math.floor(value))).padStart(digitStrips.length, '0');
-  digitStrips.forEach((strip, i) => {
-    const d = parseInt(str[i]) || 0;
-    strip.style.transition = instant ? 'none' : 'transform 0.28s cubic-bezier(0.4,0,0.2,1)';
-    strip.style.transform  = `translateY(-${d * 10}%)`;
-  });
-}
-
-function animateSplashCounter(total) {
-  const startFrom = Math.max(0, total - (3 + Math.floor(Math.random() * 4)));
-  const numDigits = Math.max(String(total).length, 4);
-  const container = document.getElementById('splashCounter');
-  buildDigitRoller(container, numDigits);
-  setRollerValue(startFrom, true);   // instant jump to start
-  let current = startFrom;
-  const tick = () => {
-    current++;
-    setRollerValue(current, false);
-    if (current < total) setTimeout(tick, current >= total - 2 ? 220 : 85);
-  };
-  setTimeout(tick, 400); // short pause before counting starts
 }
 
 // ── DOM ──────────────────────────────────────────────
@@ -888,7 +818,6 @@ function goToSplash() {
   gameScoreArea.classList.remove('visible');
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, W, H);
-  sbFetchStats();
 }
 
 function goToLanding() {
@@ -1341,7 +1270,6 @@ function rrect(ctx, x, y, w, h, r) {
 
 // ── Boot ─────────────────────────────
 resize();
-sbFetchStats(); // fetch counter → animates into splash
 // Canvas loop starts only when user moves to landing
 
 </script>
