@@ -6,24 +6,28 @@
 <title>Word Destroyer</title>
 <link rel="icon" href="Fav Icon.png" type="image/png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<link rel="preconnect" href="https://api.fontshare.com">
-<link href="https://api.fontshare.com/v2/css?f[]=switzer@900,700,400&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  :root { --bg:#f5f5f5; --fg:#111; --muted:#888; --grid:rgba(0,0,0,0.06); --hh:52px; }
+  :root { --bg:#f4f8f0; --fg:#111; --muted:#888; --grid:rgba(0,0,0,0.06); --hh:52px;
+    --font-display:'Barlow Condensed','Helvetica Neue',Helvetica,Arial,sans-serif;
+    --font-mono:'DM Mono','SF Mono',Menlo,monospace; }
   html,body { width:100%; height:100%; overflow:hidden;
-    font-family:'Switzer','Helvetica Neue',Helvetica,Arial,sans-serif;
+    font-family:var(--font-mono);
     background:var(--bg); color:var(--fg); }
-  body::before { content:''; position:fixed; inset:0;
-    background-image:radial-gradient(circle,var(--grid) 1px,transparent 1px);
-    background-size:32px 32px; pointer-events:none; z-index:0; }
+  /* Mono noise, size 1, density 100%, color #141512 @ 8% — matches Figma noise effect */
+  body::before { content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.0784 0 0 0 0 0.0824 0 0 0 0 0.0706 0 0 0 0.08 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size:64px 64px; }
 
   /* ── HEADER ── */
   #siteHeader { position:fixed; top:0; left:0; right:0; height:var(--hh);
     display:flex; align-items:center; justify-content:space-between;
     padding:0 24px; z-index:100; background:var(--bg);
     border-bottom:1px solid rgba(0,0,0,0.08); }
-  .logo { font-size:13px; font-weight:900; letter-spacing:-0.03em; text-transform:uppercase; }
+  .logo-img { display:block; height:24px; width:auto; cursor:pointer; }
   #pauseBtn { display:none; background:none; border:none; cursor:pointer;
     font-family:inherit; font-size:11px; font-weight:900; letter-spacing:0.1em;
     text-transform:uppercase; color:var(--muted); padding:6px 0; transition:color 0.15s; }
@@ -58,8 +62,8 @@
   /* Button hidden until text exists */
   .btn { display:inline-flex; align-items:center; justify-content:center;
     padding:16px 44px;
-    font-family:'Switzer','Helvetica Neue',Helvetica,Arial,sans-serif;
-    font-size:13px; font-weight:900; letter-spacing:0.06em;
+    font-family:var(--font-display);
+    font-size:15px; font-weight:800; letter-spacing:0.02em;
     text-transform:uppercase; line-height:0.9;
     background:var(--fg); color:var(--bg); border:none; cursor:pointer;
     transition:transform 0.15s, opacity 0.2s, visibility 0s; }
@@ -78,13 +82,13 @@
   #pauseOverlay.visible { opacity:1; pointer-events:all; }
   .pause-label { font-size:11px; font-weight:900; letter-spacing:0.15em;
     text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
-  .pause-title { font-size:clamp(40px,6vw,72px); font-weight:900;
-    letter-spacing:-0.03em; text-transform:uppercase; line-height:0.9; margin-bottom:24px; }
+  .pause-title { font-family:var(--font-display); font-size:clamp(40px,6vw,72px); font-weight:800;
+    letter-spacing:-0.02em; text-transform:uppercase; line-height:0.9; margin-bottom:24px; }
 
   /* ── COMBO ── */
   #comboDisplay { position:fixed; top:calc(var(--hh) + 16px);
-    left:50%; transform:translateX(-50%);
-    font-size:32px; font-weight:900; letter-spacing:-0.03em; text-transform:uppercase;
+    left:50%; transform:translateX(-50%); font-family:var(--font-display);
+    font-size:32px; font-weight:800; letter-spacing:-0.02em; text-transform:uppercase;
     opacity:0; transition:opacity 0.3s; pointer-events:none; z-index:20; }
 
   /* ── GAME SCORE + FEED (top-right during game) ── */
@@ -92,11 +96,11 @@
     display:flex; flex-direction:column; align-items:flex-end; gap:4px;
     pointer-events:none; z-index:60; opacity:0; transition:opacity 0.3s; }
   #gameScoreArea.visible { opacity:1; }
-  #gameScore { font-size:28px; font-weight:900; letter-spacing:-0.03em; line-height:0.9; }
+  #gameScore { font-family:var(--font-display); font-size:28px; font-weight:800; letter-spacing:-0.02em; line-height:0.9; }
   #gameScoreLabel { font-size:9px; font-weight:700; letter-spacing:0.12em;
     text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
   #scoreFeed { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
-  .feed-entry { font-size:12px; font-weight:900; letter-spacing:-0.02em;
+  .feed-entry { font-family:var(--font-display); font-size:12px; font-weight:800; letter-spacing:-0.02em;
     text-transform:uppercase; color:var(--fg);
     animation:feedSlide 0.12s ease forwards, feedFade 0.4s ease 1s forwards; }
   @keyframes feedSlide { from{opacity:0;transform:translateX(6px)} to{opacity:1;transform:none} }
@@ -110,117 +114,157 @@
   .splash-inner { display:flex; flex-direction:column; align-items:center; text-align:center; }
   .splash-wordmark { font-size:11px; font-weight:900; letter-spacing:0.2em;
     text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
-  .splash-title { font-size:clamp(48px,11vw,128px); font-weight:900;
-    letter-spacing:-0.04em; text-transform:uppercase; line-height:0.88; margin-bottom:44px; }
+  .splash-title { font-family:var(--font-display); font-size:clamp(48px,11vw,128px); font-weight:800;
+    letter-spacing:-0.02em; text-transform:uppercase; line-height:0.88; margin-bottom:44px; }
   #splashBtn { min-width:200px; }
   .splash-lb-link { background:none; border:none; cursor:pointer; margin-top:16px;
-    font-family:'Switzer','Helvetica Neue',Helvetica,Arial,sans-serif;
-    font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+    font-family:var(--font-mono);
+    font-size:11px; font-weight:500; letter-spacing:0.1em; text-transform:uppercase;
     color:var(--muted); text-decoration:underline; text-underline-offset:3px;
     transition:color 0.15s; padding:4px 0; }
   .splash-lb-link:hover { color:var(--fg); }
 
   /* ── END SCREEN ── */
   #endScreen { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
-    z-index:80; opacity:0; pointer-events:none; transition:opacity 0.4s;
-    overflow-y:auto; background:var(--bg); }
-  #endScreen.visible { opacity:1; pointer-events:all; }
-  .end-layout { display:flex; flex-direction:column; min-height:100%; width:100%; }
-  @media (min-width:700px) {
-    .end-layout { flex-direction:row; max-width:860px; margin:0 auto; }
-  }
+    z-index:80; opacity:0; pointer-events:none; transform:translateY(18px);
+    transition:opacity 0.5s ease, transform 0.5s cubic-bezier(0.16,1,0.3,1);
+    overflow-y:auto; -webkit-overflow-scrolling:touch; background:var(--bg); }
+  #endScreen.visible { opacity:1; pointer-events:all; transform:translateY(0); }
+  .end-inner { max-width:720px; margin:0 auto; padding:40px 16px calc(32px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Impact flash between last brick and end screen reveal */
+  #endFlash { position:fixed; top:0; left:0; right:0; bottom:0; z-index:95;
+    background:#111; opacity:0; pointer-events:none; transition:opacity 0.15s ease; }
+  #endFlash.flash { opacity:1; transition:opacity 0.06s ease; }
+
+  /* Banner — unfurls open from the center like a scroll */
+  .end-banner { display:flex; align-items:center; justify-content:center; margin-bottom:24px;
+    transform:scaleX(0.06); opacity:0; transform-origin:50% 50%;
+    transition:transform 0.6s cubic-bezier(0.16,1,0.3,1), opacity 0.25s ease; }
+  .end-banner.reveal { transform:scaleX(1); opacity:1; }
+  .end-banner img { display:block; height:40px; width:auto; flex-shrink:0; }
+  .end-banner-msg { background:#111; color:#fff; height:40px; display:flex; align-items:center;
+    justify-content:center; padding:0 16px; white-space:nowrap;
+    font-family:var(--font-display); font-weight:500; letter-spacing:-0.02em;
+    font-size:clamp(20px,4vw,32px); }
+
+  .end-layout { display:flex; flex-direction:column; gap:16px; }
+  @media (min-width:700px) { .end-layout { flex-direction:row; align-items:stretch; gap:24px; perspective:1400px; } }
+
+  /* Shared card chrome — flips open like a card, staggered per card */
+  .end-card, .end-lb-card { border:1px solid var(--fg); padding:32px 20px;
+    display:flex; flex-direction:column; gap:24px; background:var(--bg);
+    opacity:0; transform:rotateY(-90deg); transform-origin:0% 50%;
+    transition:transform 0.55s cubic-bezier(0.34,1.2,0.64,1), opacity 0.3s ease; }
+  .end-card.reveal, .end-lb-card.reveal { opacity:1; transform:rotateY(0deg); }
+  .end-lb-card { gap:16px; }
+  @media (min-width:700px) { .end-card, .end-lb-card { flex:1; min-width:0; } }
+  @media (max-width:699px) { .end-card, .end-lb-card { transform:translateY(14px); transform-origin:center; }
+    .end-card.reveal, .end-lb-card.reveal { transform:translateY(0); } }
+
+  .end-card-header, .end-lb-card > .end-card-header { display:flex; align-items:center;
+    justify-content:space-between; padding-bottom:10px; border-bottom:0.5px solid var(--fg);
+    font-family:var(--font-mono); font-size:10px; font-weight:500; letter-spacing:1px; text-transform:uppercase; }
+  .end-card-header img { display:block; width:12px; height:12px; }
+  .end-card-header .icon-row { display:flex; align-items:center; gap:4px; }
 
   /* Scorecard */
-  .end-card { display:flex; flex-direction:column;
-    padding:32px 28px 24px; border-bottom:1px solid rgba(0,0,0,0.08); }
-  @media (min-width:700px) {
-    .end-card { min-width:300px; max-width:340px; border-bottom:none;
-      border-right:1px solid rgba(0,0,0,0.08); padding:40px 36px; }
-  }
-  .end-eyebrow { font-size:10px; font-weight:900; letter-spacing:0.18em;
-    text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
-  .end-score { font-size:clamp(52px,9vw,96px); font-weight:900;
-    letter-spacing:-0.04em; line-height:0.88; margin-bottom:4px; }
-  .end-score-label { font-size:9px; font-weight:700; letter-spacing:0.15em;
-    text-transform:uppercase; color:var(--muted); }
-  .end-accuracy-label { font-size:11px; font-weight:900; letter-spacing:0.14em;
-    text-transform:uppercase; color:var(--muted); margin-top:8px; min-height:18px;
+  .score-block { display:flex; flex-direction:column; gap:16px; }
+  .stats-block { display:flex; flex-direction:column; gap:8px; }
+  .end-score-row { display:flex; align-items:flex-end; justify-content:flex-end; gap:16px; }
+  .end-score { font-family:var(--font-display); font-size:clamp(52px,9vw,80px); font-weight:800;
+    letter-spacing:-0.02em; line-height:0.8; flex:1; }
+
+  .top-score-badge { display:flex; align-items:center; }
+  .top-score-badge.hidden { display:none; }
+  .top-score-badge img { display:block; height:16px; width:auto; flex-shrink:0; }
+  .top-score-badge-label { background:#111; color:#fff; height:16px; display:flex; align-items:center;
+    font-family:var(--font-display); font-weight:500; font-size:13px; letter-spacing:-0.02em;
+    text-transform:uppercase; padding:0 4px; white-space:nowrap; }
+  @keyframes badgePop { from{transform:scale(0.6);opacity:0} 70%{transform:scale(1.06)} to{transform:scale(1);opacity:1} }
+  .top-score-badge.pop-in { animation:badgePop 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+  .end-accuracy-label { font-family:var(--font-mono); font-size:10px; font-weight:500; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--muted);
     opacity:0; transform:translateY(4px);
     transition:opacity 0.35s ease, transform 0.35s ease; }
   .end-accuracy-label.visible { opacity:1; transform:translateY(0); }
   .end-accuracy-label.absorb { opacity:0; transform:translateY(-6px) scale(0.85);
     transition:opacity 0.45s ease, transform 0.45s ease; }
 
-  .stats-toggle { background:none; border:none; cursor:pointer;
-    font-family:inherit; font-size:10px; font-weight:900; letter-spacing:0.1em;
-    text-transform:uppercase; color:var(--muted); padding:14px 0 0;
-    display:flex; align-items:center; gap:5px; transition:color 0.15s; }
-  .stats-toggle:hover { color:var(--fg); }
-  .toggle-arrow { display:inline-block; transition:transform 0.2s; font-style:normal; }
-  .toggle-arrow.open { transform:rotate(180deg); }
+  .stats-header { display:flex; align-items:center; padding-top:10px; border-top:0.5px solid var(--fg); }
+  .stats-toggle { background:none; border:none; cursor:pointer; padding:0;
+    font-family:var(--font-mono); font-size:10px; font-weight:500; letter-spacing:1px;
+    text-transform:uppercase; color:var(--fg); display:flex; align-items:center; gap:8px; }
+  .toggle-arrow { display:inline-flex; transition:transform 0.2s; transform:rotate(90deg); }
+  .toggle-arrow img { display:block; width:10px; height:10px; }
+  .toggle-arrow.open { transform:rotate(-90deg); }
+  @media (min-width:700px) { .toggle-arrow { display:none; } }
   .end-stats-wrap { overflow:hidden; max-height:0; transition:max-height 0.3s ease; }
   .end-stats-wrap.open { max-height:220px; }
-  .end-stats { display:flex; flex-wrap:wrap; gap:14px 28px; padding-top:16px; }
-  .stat-block { text-align:left; }
-  .stat-num { font-size:20px; font-weight:900; letter-spacing:-0.03em; line-height:0.9; }
-  .stat-lbl { font-size:9px; font-weight:700; letter-spacing:0.1em;
-    text-transform:uppercase; color:var(--muted); margin-top:3px; }
-  .end-buttons { display:flex; gap:10px; flex-wrap:wrap; margin-top:auto; padding-top:28px; }
-  .end-buttons .btn { flex:1; min-width:100px; padding:14px 16px; }
+  @media (min-width:700px) { .end-stats-wrap { max-height:none !important; } }
+  .end-stats { display:flex; flex-direction:column; gap:8px; padding:8px;
+    border:0.5px solid rgba(17,17,17,0.5); }
+  .stat-row { display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+    font-family:var(--font-mono); font-size:10px; font-weight:500; letter-spacing:1px;
+    text-transform:uppercase; color:rgba(17,17,17,0.5); }
 
-  /* Leaderboard panel */
-  .end-lb { flex:1; display:flex; flex-direction:column; padding:32px 28px 24px; }
-  @media (min-width:700px) { .end-lb { padding:40px 36px; overflow-y:auto; } }
+  .end-actions { display:flex; flex-direction:column; gap:24px; margin-top:auto; padding-top:8px; }
+  .btn-block { border:1px solid var(--fg); padding:14px 8px; width:100%; background:none;
+    cursor:pointer; text-align:center; font-family:var(--font-display); font-weight:800;
+    font-size:clamp(18px,3vw,26px); letter-spacing:-0.02em; text-transform:uppercase;
+    color:var(--fg); transition:background 0.15s, color 0.15s; }
+  .btn-block:hover { background:var(--fg); color:var(--bg); }
+
+  /* Leaderboard card */
+  .lb-list { display:flex; flex-direction:column; }
+  .lb-row { display:flex; align-items:baseline; gap:8px; padding:8px 0 4px;
+    border-bottom:0.5px solid var(--fg);
+    font-family:var(--font-mono); font-size:16px; font-weight:500; letter-spacing:1px; text-transform:uppercase; }
+  .lb-row:first-child { padding-top:0; }
+  .lb-rank { font-size:10px; flex-shrink:0; }
+  .lb-name { width:31px; flex-shrink:0; }
+  .lb-score { flex:1; text-align:right; font-variant-numeric:tabular-nums; }
+  .lb-row.lb-mine { background:#111; color:#fff; padding:8px; margin:0 -8px; border-bottom:none; }
+  .lb-empty, .lb-loading { font-family:var(--font-mono); font-size:10px; font-weight:500;
+    color:var(--muted); padding:16px 0; letter-spacing:0.08em; text-transform:uppercase; }
+
+  /* New high score entry row */
+  .lb-row.lb-entry { background:#111; color:#f7f7f7; align-items:center;
+    padding:8px; margin:0 -8px; border-bottom:none; }
+  .lb-entry-icon { width:12px; height:12px; flex-shrink:0; display:block;
+    transform:rotate(45deg); filter:invert(1); }
+  .lb-initials-box { flex:1; min-width:0; border:0.5px solid #fff; display:flex;
+    align-items:center; justify-content:space-between; gap:10px; padding:4px 8px; }
+  .lb-initials-stack { position:relative; flex:1; min-width:0; }
+  .lb-initials-label { font-size:8px; line-height:1; margin-bottom:4px; color:#f7f7f7; white-space:nowrap; }
+  #initialsInput { font-family:var(--font-mono); font-size:16px; font-weight:500;
+    letter-spacing:1px; text-transform:uppercase; width:100%; max-width:64px;
+    border:none; background:transparent; outline:none; color:#f7f7f7; padding:0; }
+  #initialsInput::placeholder { color:rgba(247,247,247,0.4); }
+  #submitInitialsBtn { background:none; border:none; cursor:pointer; padding:0;
+    font-family:var(--font-mono); font-size:12px; font-weight:500; letter-spacing:1px;
+    text-transform:uppercase; color:#f7f7f7; text-decoration:underline; text-underline-offset:2px;
+    flex-shrink:0; transition:opacity 0.15s; }
+  #submitInitialsBtn:hover { opacity:0.7; }
+  #submitInitialsBtn:disabled { opacity:0.4; cursor:default; }
+
+  /* Footer credit */
+  .end-footer { display:flex; align-items:center; justify-content:center; gap:8px;
+    padding-top:32px; font-family:var(--font-mono); font-size:10px; font-weight:500;
+    letter-spacing:1px; text-transform:uppercase; color:var(--fg); }
+  .end-footer img { width:8px; height:8px; display:block; }
+
+  /* ── Standalone leaderboard page (splash → View Leaderboard) ── */
   #lbScreen { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     background:var(--bg); overflow-y:auto; z-index:80; }
   #lbScreen.hidden { display:none; }
-  .lb-page-tagline { font-size:13px; color:var(--muted); text-align:center;
-    margin-bottom:28px; line-height:1.6; }
-  .lb-page-list { width:100%; max-width:360px; max-height:50vh; }
-  .lb-header { font-size:10px; font-weight:900; letter-spacing:0.18em;
-    text-transform:uppercase; color:var(--muted); margin-bottom:20px; }
-  .lb-list { display:flex; flex-direction:column; overflow-y:auto; }
-  @media (max-width:699px) { .lb-list { max-height:260px; } }
-  .lb-row { display:flex; align-items:center; gap:12px;
-    padding:10px 0; border-bottom:1px solid rgba(0,0,0,0.06);
-    font-size:13px; font-weight:900; }
-  .lb-row:last-child { border-bottom:none; }
-  .lb-row.lb-mine { background:var(--fg); color:var(--bg);
-    padding:10px 12px; margin:0 -12px; }
-  .lb-rank { font-size:10px; font-weight:700; letter-spacing:0.06em;
-    color:var(--muted); min-width:26px; flex-shrink:0; }
-  .lb-row.lb-mine .lb-rank { color:rgba(245,245,245,0.55); }
-  .lb-name { flex:1; text-transform:uppercase; letter-spacing:0.05em; }
-  .lb-score { font-size:13px; font-weight:900; letter-spacing:-0.02em;
-    font-variant-numeric:tabular-nums; flex-shrink:0; }
-  .lb-empty { font-size:11px; color:var(--muted); padding:24px 0;
-    letter-spacing:0.06em; text-transform:uppercase; }
-  .lb-loading { font-size:10px; color:var(--muted); padding:20px 0;
-    letter-spacing:0.1em; text-transform:uppercase; }
-
-  /* New high score entry row */
-  .lb-row.lb-entry { flex-direction:column; align-items:stretch;
-    gap:8px; padding:14px 0; }
-  .lb-entry-top { display:flex; align-items:center; gap:10px; }
-  .lb-entry-badge { font-size:9px; font-weight:900; letter-spacing:0.1em;
-    text-transform:uppercase; border:1.5px solid var(--fg); padding:3px 8px;
-    white-space:nowrap; flex-shrink:0; }
-  .lb-entry-score { font-size:13px; font-weight:900; letter-spacing:-0.02em;
-    margin-left:auto; flex-shrink:0; }
-  .lb-initials-row { display:flex; align-items:center; gap:10px; }
-  .lb-initials-label { font-size:9px; font-weight:700; letter-spacing:0.1em;
-    text-transform:uppercase; color:var(--muted); flex-shrink:0; }
-  #initialsInput { font-family:inherit; font-size:22px; font-weight:900;
-    letter-spacing:0.15em; text-transform:uppercase; width:76px;
-    border:none; border-bottom:2px solid var(--fg); background:transparent;
-    outline:none; text-align:center; color:var(--fg); padding:2px 0; }
-  #submitInitialsBtn { background:var(--fg); color:var(--bg); border:none;
-    cursor:pointer; font-family:inherit; font-size:10px; font-weight:900;
-    letter-spacing:0.08em; text-transform:uppercase; padding:9px 18px;
-    transition:opacity 0.15s; }
-  #submitInitialsBtn:hover { opacity:0.8; }
-  #submitInitialsBtn:disabled { opacity:0.4; cursor:default; }
+  .lb-page-tagline { font-family:var(--font-mono); font-size:13px; color:var(--muted);
+    text-align:center; margin-bottom:28px; line-height:1.6; }
+  .lb-page-list { width:100%; max-width:360px; max-height:50vh; overflow-y:auto; }
+  .lb-header { font-family:var(--font-mono); font-size:10px; font-weight:500; letter-spacing:0.18em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:20px; text-align:center; }
 
   @keyframes popIn { from{transform:scale(0.7);opacity:0} 80%{transform:scale(1.04)} to{transform:scale(1);opacity:1} }
   .pop-in { animation:popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both; }
@@ -229,7 +273,7 @@
 <body>
 
 <header id="siteHeader">
-  <span class="logo" id="logoBtn" style="cursor:pointer">Word Destroyer</span>
+  <img class="logo-img" id="logoBtn" src="logo.svg" alt="Word Destroyer">
   <button id="pauseBtn">Pause</button>
   <button id="soundBtn" title="Toggle sound">
     <!-- sound-on icon -->
@@ -275,6 +319,7 @@
 </div>
 
 <div id="comboDisplay"></div>
+<div id="endFlash"></div>
 
 <!-- Score + feed during gameplay -->
 <div id="gameScoreArea">
@@ -293,31 +338,64 @@
 
 <!-- End screen -->
 <div id="endScreen">
-  <div class="end-layout">
-    <!-- Scorecard (left on desktop, top on mobile) -->
-    <div class="end-card">
-      <p class="end-eyebrow">Message Destroyed</p>
-      <div class="end-score-label">Your Score</div>
-      <div class="end-score" id="endScore">0</div>
-      <div class="end-accuracy-label" id="endAccuracy"></div>
-      <button class="stats-toggle" id="statsToggle">
-        <span id="statsToggleText">Show Stats</span>
-        <span class="toggle-arrow" id="toggleArrow">↓</span>
-      </button>
-      <div class="end-stats-wrap" id="endStatsWrap">
-        <div class="end-stats" id="endStats"></div>
+  <div class="end-inner">
+    <div class="end-banner">
+      <img src="icons/TilesLeft.svg" alt="">
+      <div class="end-banner-msg">Message Destroyed</div>
+      <img src="icons/TilesRight.svg" alt="">
+    </div>
+    <div class="end-layout">
+      <!-- Scorecard (left on desktop, top on mobile) -->
+      <div class="end-card">
+        <div class="score-block">
+          <div class="end-card-header">
+            <span>Your Score</span>
+            <img src="icons/Icon=Asterisk.svg" alt="">
+          </div>
+          <div class="end-score-row">
+            <div class="end-score" id="endScore">0</div>
+            <div class="end-accuracy-label" id="endAccuracy"></div>
+            <span class="top-score-badge hidden" id="topScoreBadge">
+              <img src="icons/Side=Left, Size=Small.svg" alt="">
+              <span class="top-score-badge-label">Top Score</span>
+              <img src="icons/Side=Right, Size=Small.svg" alt="">
+            </span>
+          </div>
+        </div>
+        <div class="stats-block">
+          <div class="stats-header">
+            <button class="stats-toggle" id="statsToggle">
+              <span>Your Stats</span>
+              <span class="toggle-arrow" id="toggleArrow"><img src="icons/Icon=Right.svg" alt=""></span>
+            </button>
+          </div>
+          <div class="end-stats-wrap" id="endStatsWrap">
+            <div class="end-stats" id="endStats"></div>
+          </div>
+        </div>
+        <div class="end-actions">
+          <button class="btn-block" id="restartBtn">Destroy Another Message</button>
+          <button class="btn-block" id="shareBtn">Share Score</button>
+        </div>
       </div>
-      <div class="end-buttons">
-        <button class="btn" id="restartBtn">Destroy Another</button>
-        <button class="btn outline" id="shareBtn">Share</button>
+      <!-- Leaderboard (right on desktop, bottom on mobile) -->
+      <div class="end-lb-card">
+        <div class="end-card-header">
+          <span>Top Scores</span>
+          <span class="icon-row">
+            <img src="icons/Icon=points.svg" alt="">
+            <img src="icons/Icon=points.svg" alt="">
+            <img src="icons/Icon=points.svg" alt="">
+          </span>
+        </div>
+        <div class="lb-list" id="lbList">
+          <p class="lb-loading">Loading...</p>
+        </div>
       </div>
     </div>
-    <!-- Leaderboard (right on desktop, bottom on mobile) -->
-    <div class="end-lb">
-      <p class="lb-header">Top 10 Scores</p>
-      <div class="lb-list" id="lbList">
-        <p class="lb-loading">Loading...</p>
-      </div>
+    <div class="end-footer">
+      <span>Created by Rodrigo Silva</span>
+      <img src="icons/Icon=Link.svg" alt="">
     </div>
   </div>
 </div>
@@ -332,7 +410,7 @@ const BALL_SPEED = 10;
 const BALL_R     = 8;
 const PADDLE_H   = 14;
 const PADDLE_WR  = 0.13;
-const FONT_FACE  = "'Switzer','Helvetica Neue',Helvetica,Arial,sans-serif";
+const FONT_FACE  = "'Barlow Condensed','Helvetica Neue',Helvetica,Arial,sans-serif";
 const LINE_PAD   = 40; // px from each edge for the underline
 
 // ── Supabase ──────────────────────────────────────────
@@ -382,6 +460,7 @@ const gameScoreArea = document.getElementById('gameScoreArea');
 const gameScoreEl   = document.getElementById('gameScore');
 const scoreFeed     = document.getElementById('scoreFeed');
 const endScreen     = document.getElementById('endScreen');
+const endFlash      = document.getElementById('endFlash');
 const pauseOverlay  = document.getElementById('pauseOverlay');
 const pauseBtn      = document.getElementById('pauseBtn');
 const resumeBtn     = document.getElementById('resumeBtn');
@@ -510,7 +589,7 @@ if (window.visualViewport) {
 // ── Text wrap ────────────────────────────────────────
 function getLines(text) {
   if (!text) return [];
-  ctx.font = `900 ${fontSize}px ${FONT_FACE}`;
+  ctx.font = `800 ${fontSize}px ${FONT_FACE}`;
   const areaW = W * 0.82;
   const words = text.split(/\s+/);
   const lines = [];
@@ -546,7 +625,7 @@ function getLines(text) {
 // ── Character rectangles for selection highlight ──────
 // Returns array[charIndexInText] = {x, y, w, h} in canvas coords
 function buildCharRects(text, lines) {
-  ctx.font = `900 ${fontSize}px ${FONT_FACE}`;
+  ctx.font = `800 ${fontSize}px ${FONT_FACE}`;
   const rects = new Array(text.length).fill(null);
   let origIdx = 0;
 
@@ -639,7 +718,7 @@ function drawLanding() {
     cursorTimer   = 0;
   }
 
-  ctx.font = `900 ${fontSize}px ${FONT_FACE}`;
+  ctx.font = `800 ${fontSize}px ${FONT_FACE}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
 
@@ -743,7 +822,7 @@ function layoutBricks() {
   bricks = [];
   const text  = hiddenInput.value.trim().toUpperCase();
   const lines = getLines(text);
-  ctx.font = `900 ${fontSize}px ${FONT_FACE}`;
+  ctx.font = `800 ${fontSize}px ${FONT_FACE}`;
   let wordIdxGlobal = 0;
 
   lines.forEach((line, li) => {
@@ -794,9 +873,9 @@ async function goToLbPage() {
     if (leaderboard.length) {
       listEl.innerHTML = leaderboard.map((e, i) => `
         <div class="lb-row">
-          <span class="lb-rank">#${i+1}</span>
+          <span class="lb-rank">${String(i+1).padStart(2,'0')}</span>
           <span class="lb-name">${e.initials}</span>
-          <span class="lb-score">${e.score.toLocaleString()}</span>
+          <span class="lb-score">${fmtScore(e.score)}</span>
         </div>`).join('');
     } else {
       listEl.innerHTML = '<p class="lb-empty">No scores yet — yours could be first.</p>';
@@ -952,7 +1031,10 @@ function update(dt = 1) {
   });
 
   if (state === 'playing' && bricks.length > 0 && bricks.every(b => b.dead)) {
-    state = 'ending'; setTimeout(endGame, 700);
+    state = 'ending';
+    setTimeout(() => { endFlash.classList.add('flash'); }, 520);
+    setTimeout(() => { endFlash.classList.remove('flash'); }, 640);
+    setTimeout(endGame, 680);
   }
 }
 
@@ -988,7 +1070,7 @@ function draw() {
     ctx.scale(1-t*0.7, 1-t*0.7);
     ctx.globalAlpha = br.dead ? clamp(1-t*1.6,0,1) : 1;
     const flash = br.flashTimer/5;
-    ctx.font = `900 ${br.fontSize}px ${FONT_FACE}`;
+    ctx.font = `800 ${br.fontSize}px ${FONT_FACE}`;
     ctx.fillStyle = flash > 0 ? `rgba(17,17,17,${1-flash*0.8})` : '#111';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(br.char, 0, 0);
@@ -1068,13 +1150,16 @@ function updateScore() { gameScoreEl.textContent = score.toLocaleString(); }
 // ═══════════════════════════════════════
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+const scoreFormatter = new Intl.NumberFormat('de-DE');
+function fmtScore(n) { return scoreFormatter.format(Math.round(n)); }
+
 function animateScoreRoll(el, from, to, duration) {
   return new Promise(resolve => {
     const start = performance.now();
     function step(now) {
       const t = Math.min((now - start) / duration, 1);
       const eased = 1 - Math.pow(1 - t, 3);
-      el.textContent = Math.round(from + (to - from) * eased).toLocaleString();
+      el.textContent = fmtScore(from + (to - from) * eased);
       if (t < 1) requestAnimationFrame(step);
       else resolve();
     }
@@ -1097,39 +1182,47 @@ async function endGame() {
   const endAccuracyEl = document.getElementById('endAccuracy');
 
   // Show base score
-  endScoreEl.textContent = score.toLocaleString();
+  endScoreEl.textContent = fmtScore(score);
   endAccuracyEl.classList.remove('visible', 'absorb');
 
   const stats = [
-    { num:lettersDestroyed,           lbl:'Letters' },
-    { num:wordsDestroyed,             lbl:'Words' },
-    { num:`×${maxCombo}`,             lbl:'Max Combo' },
-    { num:ballsLaunched,              lbl:'Balls Used' },
-    { num:`${accuracy}%`,             lbl:'Accuracy' },
-    { num:bounces.toLocaleString(),   lbl:'Bounces' },
+    { num:lettersDestroyed,     lbl:'Letters' },
+    { num:`${maxCombo}X`,       lbl:'Max Multiplier' },
+    { num:ballsLaunched,        lbl:'Balls Used' },
+    { num:`${accuracy}%`,       lbl:'Accuracy' },
   ];
-  document.getElementById('endStats').innerHTML = stats.map((s,i) => `
-    <div class="stat-block pop-in" style="animation-delay:${i*60}ms">
-      <div class="stat-num">${s.num}</div>
-      <div class="stat-lbl">${s.lbl}</div>
+  document.getElementById('endStats').innerHTML = stats.map(s => `
+    <div class="stat-row">
+      <span>${s.lbl}</span>
+      <span>${s.num}</span>
     </div>`).join('');
 
-  // Stats toggle
-  const statsToggleBtn  = document.getElementById('statsToggle');
-  const endStatsWrap    = document.getElementById('endStatsWrap');
-  const toggleArrow     = document.getElementById('toggleArrow');
-  const statsToggleText = document.getElementById('statsToggleText');
+  // Stats toggle (mobile only — CSS keeps it always-open on desktop)
+  const statsToggleBtn = document.getElementById('statsToggle');
+  const endStatsWrap   = document.getElementById('endStatsWrap');
+  const toggleArrow    = document.getElementById('toggleArrow');
   statsToggleBtn.onclick = () => {
     const open = endStatsWrap.classList.toggle('open');
     toggleArrow.classList.toggle('open', open);
-    statsToggleText.textContent = open ? 'Hide Stats' : 'Show Stats';
   };
 
-  endScreen.classList.add('visible');
+  // Reset the reveal sequence (in case of replay) then play it: rise/fade →
+  // banner unfurls open from center → score card flips in → leaderboard card flips in.
+  const bannerEl = document.querySelector('.end-banner');
+  const cardEl   = document.querySelector('.end-card');
+  const lbCardEl = document.querySelector('.end-lb-card');
+  bannerEl.classList.remove('reveal');
+  cardEl.classList.remove('reveal');
+  lbCardEl.classList.remove('reveal');
 
-  // Accuracy absorption animation
+  endScreen.classList.add('visible');
+  setTimeout(() => bannerEl.classList.add('reveal'), 150);
+  setTimeout(() => cardEl.classList.add('reveal'), 750);
+  setTimeout(() => lbCardEl.classList.add('reveal'), 930);
+
+  // Accuracy absorption animation — waits for the score card to finish flipping in
   if (accuracy < 100 && score > 0) {
-    await delay(600);
+    await delay(1300);
     endAccuracyEl.textContent = `+${accuracy}% accuracy`;
     endAccuracyEl.classList.add('visible');
     await delay(900);
@@ -1140,7 +1233,7 @@ async function endGame() {
     await delay(500);
     endAccuracyEl.classList.remove('absorb');
   } else {
-    endScoreEl.textContent = finalScore.toLocaleString();
+    endScoreEl.textContent = fmtScore(finalScore);
   }
 
   // Fetch + render leaderboard
@@ -1160,6 +1253,19 @@ function renderLeaderboard(userScore) {
   const qualifies = leaderboard.length < 10
     || userScore > (leaderboard[leaderboard.length - 1]?.score ?? 0);
 
+  const badgeEl = document.getElementById('topScoreBadge');
+  if (qualifies) {
+    const accEl = document.getElementById('endAccuracy');
+    accEl.classList.remove('visible');
+    accEl.textContent = '';
+    badgeEl.classList.remove('hidden');
+    badgeEl.classList.remove('pop-in');
+    void badgeEl.offsetWidth; // restart animation on replay
+    badgeEl.classList.add('pop-in');
+  } else {
+    badgeEl.classList.add('hidden');
+  }
+
   // Where does user slot in?
   let insertAt = leaderboard.findIndex(e => userScore > e.score);
   if (insertAt === -1) insertAt = leaderboard.length;
@@ -1176,26 +1282,25 @@ function renderLeaderboard(userScore) {
       // Player's new-high-score entry row
       html += `
         <div class="lb-row lb-entry">
-          <div class="lb-entry-top">
-            <span class="lb-rank">#${rowNum}</span>
-            <span class="lb-entry-badge">New High Score</span>
-            <span class="lb-entry-score">${userScore.toLocaleString()}</span>
-          </div>
-          <div class="lb-initials-row">
-            <span class="lb-initials-label">Your initials</span>
-            <input id="initialsInput" maxlength="3" autocomplete="off"
-              autocorrect="off" spellcheck="false" placeholder="AAA">
+          <img class="lb-entry-icon" src="icons/Icon=Right.svg" alt="">
+          <div class="lb-initials-box">
+            <div class="lb-initials-stack">
+              <div class="lb-initials-label">Your initials</div>
+              <input id="initialsInput" maxlength="3" autocomplete="off"
+                autocorrect="off" spellcheck="false" placeholder="AAA">
+            </div>
             <button id="submitInitialsBtn">Save</button>
           </div>
+          <span class="lb-score">${fmtScore(userScore)}</span>
         </div>`;
       insertAt = -1; // mark placed
     } else {
       if (boardIdx >= leaderboard.length) break;
       const e = leaderboard[boardIdx++];
       html += `<div class="lb-row">
-        <span class="lb-rank">#${rowNum}</span>
+        <span class="lb-rank">${String(rowNum).padStart(2,'0')}</span>
         <span class="lb-name">${e.initials}</span>
-        <span class="lb-score">${e.score.toLocaleString()}</span>
+        <span class="lb-score">${fmtScore(e.score)}</span>
       </div>`;
     }
   }
@@ -1235,9 +1340,9 @@ function renderLeaderboardFinal(userScore, initials) {
   board.forEach((e, i) => {
     const mine = e.initials.toUpperCase() === initials.toUpperCase() && e.score === userScore;
     html += `<div class="lb-row${mine ? ' lb-mine' : ''}">
-      <span class="lb-rank">#${i+1}</span>
+      <span class="lb-rank">${String(i+1).padStart(2,'0')}</span>
       <span class="lb-name">${e.initials}</span>
-      <span class="lb-score">${e.score.toLocaleString()}</span>
+      <span class="lb-score">${fmtScore(e.score)}</span>
     </div>`;
   });
   list.innerHTML = html;
@@ -1252,7 +1357,7 @@ shareBtn.addEventListener('click', () => {
   if (navigator.share) navigator.share({ title:'Word Destroyer', text, url }).catch(()=>{});
   else navigator.clipboard.writeText(text).then(() => {
     shareBtn.textContent = 'Copied!';
-    setTimeout(() => shareBtn.textContent = 'Share', 2000);
+    setTimeout(() => shareBtn.textContent = 'Share Score', 2000);
   });
 });
 
