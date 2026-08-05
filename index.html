@@ -172,13 +172,15 @@
 
   /* Shared card chrome — a thin vertical line rises up off the bottom, then
      rotates open on a VERTICAL axis through its own center (like a card spinning
-     open edge-on, not a flap hinging up). Two distinct stages in one keyframe
-     timeline: rise (still a sliver) → rotate (line widens into the full face). */
-  @keyframes cardFlipUp {
-    0%   { opacity:0; transform:translateY(40px) rotateY(90deg); }
-    45%  { opacity:1; transform:translateY(0)     rotateY(90deg); } /* risen into place, still edge-on — just a vertical line */
-    100% { opacity:1; transform:translateY(0)     rotateY(0deg);  } /* rotates open on the vertical axis, face revealed */
-  }
+     open edge-on, not a flap hinging up). This is split into two JS-triggered classes
+     (.rise then .reveal) rather than one @keyframes rule — a single keyframe with
+     translateY(40px) rotateY(90deg) -> translateY(0) rotateY(90deg) -> translateY(0)
+     rotateY(0deg) LOOKS like it should hold rotation pinned at 90deg through the first
+     stage, but visually did not (rendered as a barely-rotated skew, not a clean edge-on
+     line). Splitting into two sequential transitions — each changing exactly one of
+     translateY/rotateY while the other is *identically* the same value before and
+     after — removes any ambiguity in how the browser interpolates the combined
+     transform, since there's nothing for it to get wrong on the pinned axis. */
   .end-card, .end-lb-card { border:1px solid var(--fg); padding:32px 20px;
     display:flex; flex-direction:column; gap:24px;
     opacity:0; transform:translateY(40px) rotateY(90deg); transform-origin:50% 50%; }
@@ -190,7 +192,12 @@
       transition:transform 0.5s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease; }
   }
   @media (min-width:700px) {
-    .end-card.reveal, .end-lb-card.reveal { animation:cardFlipUp 0.85s cubic-bezier(0.3,0,0.2,1) both; }
+    .end-card, .end-lb-card { transition:opacity 0.3s ease, transform 0.4s ease-out; }
+    /* Stage 1: rise only — translateY 40->0, rotateY stays 90->90 (no change, no ambiguity) */
+    .end-card.rise, .end-lb-card.rise { opacity:1; transform:translateY(0) rotateY(90deg); }
+    /* Stage 2: rotate only — rotateY 90->0, translateY stays 0->0 (no change, no ambiguity) */
+    .end-card.reveal, .end-lb-card.reveal { opacity:1; transform:translateY(0) rotateY(0deg);
+      transition:transform 0.45s ease; }
   }
 
   .end-card-header, .end-lb-card > .end-card-header { display:flex; align-items:center;
@@ -274,10 +281,13 @@
   /* New high score entry row */
   .lb-row.lb-entry { background:#111; color:#f7f7f7; align-items:center;
     padding:8px 0; border-bottom:none; }
-  .lb-entry-icon { width:12px; height:12px; flex-shrink:0; display:block;
-    transform:rotate(45deg); filter:invert(1); }
+  .lb-entry-icon { width:12px; height:12px; flex-shrink:0; display:block; filter:invert(1); }
   .lb-initials-box { flex:1; min-width:0; border:0.5px solid #fff; display:flex;
     align-items:center; justify-content:space-between; gap:10px; padding:4px 8px; }
+  /* .lb-score is flex:1 by default (fine for normal rows), but that means it competes
+     equally with .lb-initials-box for space here, splitting the row ~50/50. It should
+     just size to its own content and let the initials box claim everything else. */
+  .lb-row.lb-entry .lb-score { flex:none; }
   .lb-initials-stack { position:relative; flex:1; min-width:0; }
   .lb-initials-label { font-size:8px; font-weight:400; line-height:1; margin-bottom:4px; color:#f7f7f7; white-space:nowrap; }
   #initialsInput { font-family:var(--font-mono); font-size:16px; font-weight:500; line-height:1.2;
@@ -291,10 +301,12 @@
   #submitInitialsBtn:hover { opacity:0.7; }
   #submitInitialsBtn:disabled { opacity:0.4; cursor:default; }
 
-  /* Footer credit */
-  .end-footer { display:flex; align-items:center; justify-content:center; gap:8px;
+  /* Footer credit — the whole thing (text + icon) is one clickable link */
+  .end-footer { display:flex; align-items:center; justify-content:center; gap:4px;
     padding-top:32px; font-family:var(--font-mono); font-size:10px; font-weight:400; line-height:1;
-    letter-spacing:1px; text-transform:uppercase; color:var(--fg); }
+    letter-spacing:1px; text-transform:uppercase; color:var(--fg); text-decoration:none;
+    transition:opacity 0.15s; }
+  .end-footer:hover { opacity:0.7; }
   .end-footer img { width:8px; height:8px; display:block; }
 
   /* ── Standalone leaderboard page (splash → View Leaderboard) ── */
@@ -440,10 +452,10 @@
         </div>
       </div>
     </div>
-    <div class="end-footer">
+    <a class="end-footer" href="https://rodrigosilva.design" target="_blank" rel="noopener">
       <span>Created by Rodrigo Silva</span>
       <img src="icons/Icon=Link.svg" alt="">
-    </div>
+    </a>
   </div>
 </div>
 
@@ -1274,8 +1286,8 @@ async function endGame() {
   const lbCardEl     = document.querySelector('.end-lb-card');
   bannerEl.classList.remove('reveal');
   bannerTextEl.classList.remove('reveal');
-  cardEl.classList.remove('reveal');
-  lbCardEl.classList.remove('reveal');
+  cardEl.classList.remove('rise', 'reveal');
+  lbCardEl.classList.remove('rise', 'reveal');
   // Reset badge/accuracy too — on a replay after a previous top score, the badge
   // would otherwise still be showing (un-hidden) right through this game's own
   // accuracy sequence, fighting it for the same slot.
@@ -1287,8 +1299,12 @@ async function endGame() {
   endScreen.classList.add('visible');
   setTimeout(() => bannerEl.classList.add('reveal'), 150);
   setTimeout(() => bannerTextEl.classList.add('reveal'), 650);
-  setTimeout(() => cardEl.classList.add('reveal'), 750);
-  setTimeout(() => lbCardEl.classList.add('reveal'), 930);
+  // Score card: rise (translateY only, ~400ms) then rotate open (rotateY only, ~450ms)
+  setTimeout(() => cardEl.classList.add('rise'), 750);
+  setTimeout(() => cardEl.classList.add('reveal'), 750 + 420);
+  // Leaderboard card follows, staggered
+  setTimeout(() => lbCardEl.classList.add('rise'), 930);
+  setTimeout(() => lbCardEl.classList.add('reveal'), 930 + 420);
 
   // Accuracy absorption animation — waits for the score card to finish flipping in,
   // then holds long enough to actually read the bonus before it rolls into the score.
