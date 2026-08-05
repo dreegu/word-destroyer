@@ -21,14 +21,17 @@
   /* Grain — a single reusable texture (dark+light specks in one feTurbulence source),
      applied ONLY to backgrounds and big solid blots, never over text/buttons/lines —
      small UI doesn't benefit from it and it actively hurts readability there. Intensity
-     is a per-element dial: set --grain-opacity on any element that opts in, alongside
-     its selector in the shared rule below. Kept deliberately subtle (Figma reference
-     was ~8% on a single element) rather than a filter smeared uniformly over everything. */
+     is a per-element dial: set --grain-opacity on the .grain-layer div inside any
+     container that opts in. Real elements, not ::before/::after — pseudo-elements with
+     position:absolute;inset:0 inside a fixed+flex container hit a paint bug in testing
+     (correct layout box per getBoundingClientRect, but only a small corner actually
+     rasterized), so backgrounds use a real first-child div instead. */
   :root { --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='2' stitchTiles='stitch' result='t'/%3E%3CfeColorMatrix in='t' type='matrix' values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 1 0' result='gray'/%3E%3CfeComponentTransfer in='gray' result='dark'%3E%3CfeFuncR type='linear' slope='0' intercept='0'/%3E%3CfeFuncG type='linear' slope='0' intercept='0'/%3E%3CfeFuncB type='linear' slope='0' intercept='0'/%3E%3CfeFuncA type='table' tableValues='0.4 0.4 0 0 0'/%3E%3C/feComponentTransfer%3E%3CfeComponentTransfer in='gray' result='light'%3E%3CfeFuncR type='linear' slope='0' intercept='1'/%3E%3CfeFuncG type='linear' slope='0' intercept='1'/%3E%3CfeFuncB type='linear' slope='0' intercept='1'/%3E%3CfeFuncA type='table' tableValues='0 0 0 0.4 0.4'/%3E%3C/feComponentTransfer%3E%3CfeMerge%3E%3CfeMergeNode in='dark'/%3E%3CfeMergeNode in='light'/%3E%3C/feMerge%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
-  body { --grain-opacity:0.05; }
-  body::before, .end-banner-msg::after { content:''; position:absolute; inset:0; pointer-events:none;
-    background-image:var(--grain); background-size:180px 180px; opacity:var(--grain-opacity); }
-  body::before { position:fixed; z-index:0; }
+  .grain-layer { position:absolute; inset:0; pointer-events:none;
+    background-image:var(--grain); background-size:180px 180px; }
+  .grain-layer.grain-fixed { position:fixed; }
+  .grain-bg { opacity:0.22; }
+  .grain-banner { opacity:0.28; }
 
   /* ── HEADER ── */
   #siteHeader { position:fixed; top:0; left:0; right:0; height:var(--hh);
@@ -147,14 +150,15 @@
 
   /* Banner — unfurls open from the center like a scroll, then the text fades/rises in */
   .end-banner { display:flex; align-items:center; justify-content:center; margin-bottom:24px;
+    position:relative;
     transform:scaleX(0.06); opacity:0; transform-origin:50% 50%;
     transition:transform 0.6s cubic-bezier(0.16,1,0.3,1), opacity 0.25s ease; }
   .end-banner.reveal { transform:scaleX(1); opacity:1; }
   .end-banner img { display:block; height:40px; width:auto; flex-shrink:0; }
   .end-banner-msg { background:#111; color:#fff; height:40px; display:flex; align-items:center;
-    justify-content:center; padding:0 16px; white-space:nowrap; overflow:hidden; position:relative;
+    justify-content:center; padding:0 16px; white-space:nowrap; overflow:hidden;
     font-family:var(--font-display); font-weight:400; letter-spacing:-0.02em; line-height:0.8;
-    font-size:clamp(20px,4vw,32px); --grain-opacity:0.14; }
+    font-size:clamp(20px,4vw,32px); }
   .end-banner-msg span { display:inline-block; opacity:0; transform:translateY(8px);
     transition:opacity 0.35s ease, transform 0.35s ease; }
   .end-banner-msg span.reveal { opacity:1; transform:translateY(0); }
@@ -295,6 +299,7 @@
 </style>
 </head>
 <body>
+<div class="grain-layer grain-fixed grain-bg"></div>
 <header id="siteHeader">
   <img class="logo-img" id="logoBtn" src="logo.svg" alt="Word Destroyer">
   <button id="pauseBtn">Pause</button>
@@ -320,6 +325,7 @@
 
 <!-- Splash screen -->
 <div id="splashScreen">
+  <div class="grain-layer grain-bg"></div>
   <div class="splash-inner">
     <p class="splash-wordmark">Word Destroyer</p>
     <h1 class="splash-title">Write it.<br>Destroy it.</h1>
@@ -329,6 +335,7 @@
 </div>
 
 <div id="lbScreen" class="hidden">
+  <div class="grain-layer grain-bg"></div>
   <div class="splash-inner">
     <p class="lb-page-tagline">Aim for a high score.<br>Destroying things is fun&nbsp;:)</p>
     <div class="lb-page-list lb-list" id="lbPageList"><p class="lb-loading">Loading...</p></div>
@@ -353,6 +360,7 @@
 
 <!-- Pause overlay -->
 <div id="pauseOverlay">
+  <div class="grain-layer grain-bg"></div>
   <p class="pause-label">Paused</p>
   <h2 class="pause-title">Take a<br>breath.</h2>
   <button class="btn" id="resumeBtn">Resume</button>
@@ -361,11 +369,13 @@
 
 <!-- End screen -->
 <div id="endScreen">
+  <div class="grain-layer grain-bg"></div>
   <div class="end-inner">
     <div class="end-banner">
       <img src="icons/TilesLeft.svg" alt="">
       <div class="end-banner-msg"><span id="bannerText">Message Destroyed</span></div>
       <img src="icons/TilesRight.svg" alt="">
+      <div class="grain-layer grain-banner"></div>
     </div>
     <div class="end-layout">
       <!-- Scorecard (left on desktop, top on mobile) -->
