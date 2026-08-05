@@ -17,15 +17,15 @@
   html,body { width:100%; height:100%; overflow:hidden;
     font-family:var(--font-mono);
     background:var(--bg); color:var(--fg); }
-  /* Grain overlay — two alpha-varying speck layers (dark + light), both normal-blended,
-     sit above everything (cards, buttons, text). mix-blend-mode:overlay was tried first
-     but is a near no-op on colors this close to white/black — normal alpha compositing
-     with real per-pixel alpha is what actually reads as texture on both surfaces. */
-  #noiseOverlay, #noiseLight { position:fixed; inset:0; z-index:999; pointer-events:none; }
-  #noiseOverlay { background-size:36px 36px;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.32 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
-  #noiseLight { background-size:41px 41px;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n2'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.85' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.32 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n2)'/%3E%3C/svg%3E"); }
+  /* Grain overlay — one feTurbulence source split into dark + light speck buckets via
+     feComponentTransfer/feMerge, rendered at its native size (SVG intrinsic size ==
+     CSS background-size, no rescale). Earlier attempts stacked two separately-tiled
+     backgrounds at incommensurate sizes (36px/41px) — the mismatched grids beat against
+     each other and produced visible moiré/cross-hatching. A single tile with no rescale
+     avoids both causes. */
+  #noiseOverlay { position:fixed; inset:0; z-index:999; pointer-events:none;
+    background-size:128px 128px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='2' stitchTiles='stitch' result='t'/%3E%3CfeColorMatrix in='t' type='matrix' values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 1 0' result='gray'/%3E%3CfeComponentTransfer in='gray' result='dark'%3E%3CfeFuncR type='linear' slope='0' intercept='0'/%3E%3CfeFuncG type='linear' slope='0' intercept='0'/%3E%3CfeFuncB type='linear' slope='0' intercept='0'/%3E%3CfeFuncA type='table' tableValues='0.35 0.35 0 0 0'/%3E%3C/feComponentTransfer%3E%3CfeComponentTransfer in='gray' result='light'%3E%3CfeFuncR type='linear' slope='0' intercept='1'/%3E%3CfeFuncG type='linear' slope='0' intercept='1'/%3E%3CfeFuncB type='linear' slope='0' intercept='1'/%3E%3CfeFuncA type='table' tableValues='0 0 0 0.35 0.35'/%3E%3C/feComponentTransfer%3E%3CfeMerge%3E%3CfeMergeNode in='dark'/%3E%3CfeMergeNode in='light'/%3E%3C/feMerge%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
 
   /* ── HEADER ── */
   #siteHeader { position:fixed; top:0; left:0; right:0; height:var(--hh);
@@ -159,21 +159,26 @@
   .end-layout { display:flex; flex-direction:column; gap:16px; }
   @media (min-width:700px) { .end-layout { flex-direction:row; align-items:stretch; gap:24px; perspective:1400px; } }
 
-  /* Shared card chrome — rises up on its bottom edge, from a sliver to full face,
-     like a card flipping up off the table. Staggered per card in JS. */
+  /* Shared card chrome — like a sheet of paper on its side: rises up as a thin edge-on
+     line (fading in as it rises), THEN rotates open to reveal its face. Two distinct
+     stages in one keyframe timeline, not a blended simultaneous transform. */
+  @keyframes cardFlipUp {
+    0%   { opacity:0; transform:translateY(40px) rotateX(90deg); }
+    45%  { opacity:1; transform:translateY(0)     rotateX(90deg); } /* risen into place, still edge-on — just a line */
+    100% { opacity:1; transform:translateY(0)     rotateX(0deg);  } /* rotates open, face revealed */
+  }
   .end-card, .end-lb-card { border:1px solid var(--fg); padding:32px 20px;
     display:flex; flex-direction:column; gap:24px; background:var(--bg);
-    opacity:0; transition:transform 0.6s cubic-bezier(0.22,1,0.36,1), opacity 0.35s ease; }
-  .end-card.reveal, .end-lb-card.reveal { opacity:1; }
+    opacity:0; transform:translateY(40px) rotateX(90deg); transform-origin:50% 50%; }
   .end-lb-card { gap:16px; }
   @media (min-width:700px) { .end-card, .end-lb-card { flex:1; min-width:0; } }
   @media (max-width:699px) {
     .end-card, .end-lb-card { transform:translateY(16px); }
-    .end-card.reveal, .end-lb-card.reveal { transform:translateY(0); }
+    .end-card.reveal, .end-lb-card.reveal { opacity:1; transform:translateY(0);
+      transition:transform 0.5s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease; }
   }
   @media (min-width:700px) {
-    .end-card, .end-lb-card { transform:translateY(36px) rotateX(85deg); transform-origin:50% 100%; }
-    .end-card.reveal, .end-lb-card.reveal { transform:translateY(0) rotateX(0deg); }
+    .end-card.reveal, .end-lb-card.reveal { animation:cardFlipUp 0.85s cubic-bezier(0.3,0,0.2,1) both; }
   }
 
   .end-card-header, .end-lb-card > .end-card-header { display:flex; align-items:center;
@@ -288,7 +293,6 @@
 </head>
 <body>
 <div id="noiseOverlay"></div>
-<div id="noiseLight"></div>
 
 <header id="siteHeader">
   <img class="logo-img" id="logoBtn" src="logo.svg" alt="Word Destroyer">
@@ -1224,11 +1228,17 @@ async function endGame() {
     toggleArrow.classList.toggle('open', open);
   };
 
-  // Kick the leaderboard fetch off immediately, in parallel with the reveal
-  // animation below — so by the time we're ready to render, the network round
-  // trip is very likely already done instead of stacking on top of ~3s of animation.
+  // Kick the leaderboard fetch off immediately AND render as soon as it resolves —
+  // both happen in parallel with the reveal/accuracy animation below, instead of
+  // waiting behind it. Only the Top Score badge (see revealTopScoreBadge) is timed
+  // to the accuracy sequence, since it visually replaces the accuracy label.
   document.getElementById('lbList').innerHTML = '<p class="lb-loading">Loading...</p>';
-  const lbFetchPromise = sb ? sbFetchLeaderboard() : Promise.resolve();
+  let qualifiesForTopScore = false;
+  const lbFetchPromise = sb
+    ? sbFetchLeaderboard().then(() => { qualifiesForTopScore = renderLeaderboard(finalScore); })
+    : Promise.resolve().then(() => {
+        document.getElementById('lbList').innerHTML = '<p class="lb-empty">Leaderboard unavailable offline.</p>';
+      });
 
   // Reset the reveal sequence (in case of replay) then play it: rise/fade →
   // banner unfurls open from center → banner text fades/rises in →
@@ -1265,22 +1275,17 @@ async function endGame() {
     endScoreEl.textContent = fmtScore(finalScore);
   }
 
-  // Render leaderboard (fetch was already kicked off above)
-  if (sb) {
-    await lbFetchPromise;
-    renderLeaderboard(finalScore);
-  } else {
-    document.getElementById('lbList').innerHTML = '<p class="lb-empty">Leaderboard unavailable offline.</p>';
-  }
+  // The list itself has likely already rendered by now (it ran in parallel, above).
+  // This only waits if the network round trip somehow outlasted the whole animation.
+  await lbFetchPromise;
+  revealTopScoreBadge(qualifiesForTopScore);
 }
 
-function renderLeaderboard(userScore) {
-  const list = document.getElementById('lbList');
-
-  // Does user qualify for top 10?
-  const qualifies = leaderboard.length < 10
-    || userScore > (leaderboard[leaderboard.length - 1]?.score ?? 0);
-
+// Reveals the Top Score badge in the same slot the accuracy label used —
+// called once the accuracy sequence has actually finished absorbing, so the
+// badge visually "replaces" it rather than racing it. Independent of when
+// the leaderboard list itself renders (that happens as soon as data is ready).
+function revealTopScoreBadge(qualifies) {
   const badgeEl = document.getElementById('topScoreBadge');
   if (qualifies) {
     const accEl = document.getElementById('endAccuracy');
@@ -1293,6 +1298,14 @@ function renderLeaderboard(userScore) {
   } else {
     badgeEl.classList.add('hidden');
   }
+}
+
+function renderLeaderboard(userScore) {
+  const list = document.getElementById('lbList');
+
+  // Does user qualify for top 10?
+  const qualifies = leaderboard.length < 10
+    || userScore > (leaderboard[leaderboard.length - 1]?.score ?? 0);
 
   // Where does user slot in?
   let insertAt = leaderboard.findIndex(e => userScore > e.score);
@@ -1356,6 +1369,8 @@ function renderLeaderboard(userScore) {
       });
     }
   }
+
+  return qualifies;
 }
 
 function renderLeaderboardFinal(userScore, initials) {
