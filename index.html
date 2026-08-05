@@ -17,10 +17,15 @@
   html,body { width:100%; height:100%; overflow:hidden;
     font-family:var(--font-mono);
     background:var(--bg); color:var(--fg); }
-  /* Mono noise, size 1, density 100%, color #141512 @ 8% — matches Figma noise effect */
-  body::before { content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.0784 0 0 0 0 0.0824 0 0 0 0 0.0706 0 0 0 0.08 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    background-size:64px 64px; }
+  /* Grain overlay — two alpha-varying speck layers (dark + light), both normal-blended,
+     sit above everything (cards, buttons, text). mix-blend-mode:overlay was tried first
+     but is a near no-op on colors this close to white/black — normal alpha compositing
+     with real per-pixel alpha is what actually reads as texture on both surfaces. */
+  #noiseOverlay, #noiseLight { position:fixed; inset:0; z-index:999; pointer-events:none; }
+  #noiseOverlay { background-size:36px 36px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.32 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  #noiseLight { background-size:41px 41px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n2'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.85' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.32 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n2)'/%3E%3C/svg%3E"); }
 
   /* ── HEADER ── */
   #siteHeader { position:fixed; top:0; left:0; right:0; height:var(--hh);
@@ -137,34 +142,43 @@
     background:#111; opacity:0; pointer-events:none; transition:opacity 0.15s ease; }
   #endFlash.flash { opacity:1; transition:opacity 0.06s ease; }
 
-  /* Banner — unfurls open from the center like a scroll */
+  /* Banner — unfurls open from the center like a scroll, then the text fades/rises in */
   .end-banner { display:flex; align-items:center; justify-content:center; margin-bottom:24px;
     transform:scaleX(0.06); opacity:0; transform-origin:50% 50%;
     transition:transform 0.6s cubic-bezier(0.16,1,0.3,1), opacity 0.25s ease; }
   .end-banner.reveal { transform:scaleX(1); opacity:1; }
   .end-banner img { display:block; height:40px; width:auto; flex-shrink:0; }
   .end-banner-msg { background:#111; color:#fff; height:40px; display:flex; align-items:center;
-    justify-content:center; padding:0 16px; white-space:nowrap;
-    font-family:var(--font-display); font-weight:500; letter-spacing:-0.02em;
+    justify-content:center; padding:0 16px; white-space:nowrap; overflow:hidden;
+    font-family:var(--font-display); font-weight:400; letter-spacing:-0.02em; line-height:0.8;
     font-size:clamp(20px,4vw,32px); }
+  .end-banner-msg span { display:inline-block; opacity:0; transform:translateY(8px);
+    transition:opacity 0.35s ease, transform 0.35s ease; }
+  .end-banner-msg span.reveal { opacity:1; transform:translateY(0); }
 
   .end-layout { display:flex; flex-direction:column; gap:16px; }
   @media (min-width:700px) { .end-layout { flex-direction:row; align-items:stretch; gap:24px; perspective:1400px; } }
 
-  /* Shared card chrome — flips open like a card, staggered per card */
+  /* Shared card chrome — rises up on its bottom edge, from a sliver to full face,
+     like a card flipping up off the table. Staggered per card in JS. */
   .end-card, .end-lb-card { border:1px solid var(--fg); padding:32px 20px;
     display:flex; flex-direction:column; gap:24px; background:var(--bg);
-    opacity:0; transform:rotateY(-90deg); transform-origin:0% 50%;
-    transition:transform 0.55s cubic-bezier(0.34,1.2,0.64,1), opacity 0.3s ease; }
-  .end-card.reveal, .end-lb-card.reveal { opacity:1; transform:rotateY(0deg); }
+    opacity:0; transition:transform 0.6s cubic-bezier(0.22,1,0.36,1), opacity 0.35s ease; }
+  .end-card.reveal, .end-lb-card.reveal { opacity:1; }
   .end-lb-card { gap:16px; }
   @media (min-width:700px) { .end-card, .end-lb-card { flex:1; min-width:0; } }
-  @media (max-width:699px) { .end-card, .end-lb-card { transform:translateY(14px); transform-origin:center; }
-    .end-card.reveal, .end-lb-card.reveal { transform:translateY(0); } }
+  @media (max-width:699px) {
+    .end-card, .end-lb-card { transform:translateY(16px); }
+    .end-card.reveal, .end-lb-card.reveal { transform:translateY(0); }
+  }
+  @media (min-width:700px) {
+    .end-card, .end-lb-card { transform:translateY(36px) rotateX(85deg); transform-origin:50% 100%; }
+    .end-card.reveal, .end-lb-card.reveal { transform:translateY(0) rotateX(0deg); }
+  }
 
   .end-card-header, .end-lb-card > .end-card-header { display:flex; align-items:center;
     justify-content:space-between; padding-bottom:10px; border-bottom:0.5px solid var(--fg);
-    font-family:var(--font-mono); font-size:10px; font-weight:500; letter-spacing:1px; text-transform:uppercase; }
+    font-family:var(--font-mono); font-size:10px; font-weight:400; line-height:1; letter-spacing:1px; text-transform:uppercase; }
   .end-card-header img { display:block; width:12px; height:12px; }
   .end-card-header .icon-row { display:flex; align-items:center; gap:4px; }
 
@@ -179,12 +193,12 @@
   .top-score-badge.hidden { display:none; }
   .top-score-badge img { display:block; height:16px; width:auto; flex-shrink:0; }
   .top-score-badge-label { background:#111; color:#fff; height:16px; display:flex; align-items:center;
-    font-family:var(--font-display); font-weight:500; font-size:13px; letter-spacing:-0.02em;
+    font-family:var(--font-display); font-weight:400; line-height:0.8; font-size:13px; letter-spacing:-0.02em;
     text-transform:uppercase; padding:0 4px; white-space:nowrap; }
   @keyframes badgePop { from{transform:scale(0.6);opacity:0} 70%{transform:scale(1.06)} to{transform:scale(1);opacity:1} }
   .top-score-badge.pop-in { animation:badgePop 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
 
-  .end-accuracy-label { font-family:var(--font-mono); font-size:10px; font-weight:500; letter-spacing:0.1em;
+  .end-accuracy-label { font-family:var(--font-mono); font-size:13px; font-weight:400; line-height:1; letter-spacing:0.06em;
     text-transform:uppercase; color:var(--muted);
     opacity:0; transform:translateY(4px);
     transition:opacity 0.35s ease, transform 0.35s ease; }
@@ -194,8 +208,10 @@
 
   .stats-header { display:flex; align-items:center; padding-top:10px; border-top:0.5px solid var(--fg); }
   .stats-toggle { background:none; border:none; cursor:pointer; padding:0;
-    font-family:var(--font-mono); font-size:10px; font-weight:500; letter-spacing:1px;
+    font-family:var(--font-mono); font-size:10px; font-weight:400; line-height:1; letter-spacing:1px;
     text-transform:uppercase; color:var(--fg); display:flex; align-items:center; gap:8px; }
+  /* No collapse/expand action on desktop (stats are always open) — no pointer cursor either */
+  @media (min-width:700px) { .stats-toggle { cursor:default; pointer-events:none; } }
   .toggle-arrow { display:inline-flex; transition:transform 0.2s; transform:rotate(90deg); }
   .toggle-arrow img { display:block; width:10px; height:10px; }
   .toggle-arrow.open { transform:rotate(-90deg); }
@@ -206,12 +222,12 @@
   .end-stats { display:flex; flex-direction:column; gap:8px; padding:8px;
     border:0.5px solid rgba(17,17,17,0.5); }
   .stat-row { display:flex; align-items:baseline; justify-content:space-between; gap:8px;
-    font-family:var(--font-mono); font-size:10px; font-weight:500; letter-spacing:1px;
+    font-family:var(--font-mono); font-size:10px; font-weight:400; line-height:1; letter-spacing:1px;
     text-transform:uppercase; color:rgba(17,17,17,0.5); }
 
   .end-actions { display:flex; flex-direction:column; gap:24px; margin-top:auto; padding-top:8px; }
-  .btn-block { border:1px solid var(--fg); padding:14px 8px; width:100%; background:none;
-    cursor:pointer; text-align:center; font-family:var(--font-display); font-weight:800;
+  .btn-block { border:1px solid var(--fg); padding:4px; width:100%; background:none;
+    cursor:pointer; text-align:center; font-family:var(--font-display); font-weight:800; line-height:1;
     font-size:clamp(18px,3vw,26px); letter-spacing:-0.02em; text-transform:uppercase;
     color:var(--fg); transition:background 0.15s, color 0.15s; }
   .btn-block:hover { background:var(--fg); color:var(--bg); }
@@ -219,14 +235,14 @@
   /* Leaderboard card */
   .lb-list { display:flex; flex-direction:column; }
   .lb-row { display:flex; align-items:baseline; gap:8px; padding:8px 0 4px;
-    border-bottom:0.5px solid var(--fg);
+    border-bottom:0.5px solid var(--fg); line-height:1.2;
     font-family:var(--font-mono); font-size:16px; font-weight:500; letter-spacing:1px; text-transform:uppercase; }
   .lb-row:first-child { padding-top:0; }
-  .lb-rank { font-size:10px; flex-shrink:0; }
+  .lb-rank { font-size:10px; font-weight:400; flex-shrink:0; }
   .lb-name { width:31px; flex-shrink:0; }
   .lb-score { flex:1; text-align:right; font-variant-numeric:tabular-nums; }
   .lb-row.lb-mine { background:#111; color:#fff; padding:8px; margin:0 -8px; border-bottom:none; }
-  .lb-empty, .lb-loading { font-family:var(--font-mono); font-size:10px; font-weight:500;
+  .lb-empty, .lb-loading { font-family:var(--font-mono); font-size:10px; font-weight:400; line-height:1.4;
     color:var(--muted); padding:16px 0; letter-spacing:0.08em; text-transform:uppercase; }
 
   /* New high score entry row */
@@ -237,8 +253,8 @@
   .lb-initials-box { flex:1; min-width:0; border:0.5px solid #fff; display:flex;
     align-items:center; justify-content:space-between; gap:10px; padding:4px 8px; }
   .lb-initials-stack { position:relative; flex:1; min-width:0; }
-  .lb-initials-label { font-size:8px; line-height:1; margin-bottom:4px; color:#f7f7f7; white-space:nowrap; }
-  #initialsInput { font-family:var(--font-mono); font-size:16px; font-weight:500;
+  .lb-initials-label { font-size:8px; font-weight:400; line-height:1; margin-bottom:4px; color:#f7f7f7; white-space:nowrap; }
+  #initialsInput { font-family:var(--font-mono); font-size:16px; font-weight:500; line-height:1.2;
     letter-spacing:1px; text-transform:uppercase; width:100%; max-width:64px;
     border:none; background:transparent; outline:none; color:#f7f7f7; padding:0; }
   #initialsInput::placeholder { color:rgba(247,247,247,0.4); }
@@ -251,7 +267,7 @@
 
   /* Footer credit */
   .end-footer { display:flex; align-items:center; justify-content:center; gap:8px;
-    padding-top:32px; font-family:var(--font-mono); font-size:10px; font-weight:500;
+    padding-top:32px; font-family:var(--font-mono); font-size:10px; font-weight:400; line-height:1;
     letter-spacing:1px; text-transform:uppercase; color:var(--fg); }
   .end-footer img { width:8px; height:8px; display:block; }
 
@@ -263,7 +279,7 @@
   .lb-page-tagline { font-family:var(--font-mono); font-size:13px; color:var(--muted);
     text-align:center; margin-bottom:28px; line-height:1.6; }
   .lb-page-list { width:100%; max-width:360px; max-height:50vh; overflow-y:auto; }
-  .lb-header { font-family:var(--font-mono); font-size:10px; font-weight:500; letter-spacing:0.18em;
+  .lb-header { font-family:var(--font-mono); font-size:10px; font-weight:400; line-height:1; letter-spacing:0.18em;
     text-transform:uppercase; color:var(--muted); margin-bottom:20px; text-align:center; }
 
   @keyframes popIn { from{transform:scale(0.7);opacity:0} 80%{transform:scale(1.04)} to{transform:scale(1);opacity:1} }
@@ -271,6 +287,8 @@
 </style>
 </head>
 <body>
+<div id="noiseOverlay"></div>
+<div id="noiseLight"></div>
 
 <header id="siteHeader">
   <img class="logo-img" id="logoBtn" src="logo.svg" alt="Word Destroyer">
@@ -341,7 +359,7 @@
   <div class="end-inner">
     <div class="end-banner">
       <img src="icons/TilesLeft.svg" alt="">
-      <div class="end-banner-msg">Message Destroyed</div>
+      <div class="end-banner-msg"><span id="bannerText">Message Destroyed</span></div>
       <img src="icons/TilesRight.svg" alt="">
     </div>
     <div class="end-layout">
@@ -1206,28 +1224,39 @@ async function endGame() {
     toggleArrow.classList.toggle('open', open);
   };
 
+  // Kick the leaderboard fetch off immediately, in parallel with the reveal
+  // animation below — so by the time we're ready to render, the network round
+  // trip is very likely already done instead of stacking on top of ~3s of animation.
+  document.getElementById('lbList').innerHTML = '<p class="lb-loading">Loading...</p>';
+  const lbFetchPromise = sb ? sbFetchLeaderboard() : Promise.resolve();
+
   // Reset the reveal sequence (in case of replay) then play it: rise/fade →
-  // banner unfurls open from center → score card flips in → leaderboard card flips in.
-  const bannerEl = document.querySelector('.end-banner');
-  const cardEl   = document.querySelector('.end-card');
-  const lbCardEl = document.querySelector('.end-lb-card');
+  // banner unfurls open from center → banner text fades/rises in →
+  // score card flips up into place → leaderboard card follows.
+  const bannerEl     = document.querySelector('.end-banner');
+  const bannerTextEl = document.getElementById('bannerText');
+  const cardEl       = document.querySelector('.end-card');
+  const lbCardEl     = document.querySelector('.end-lb-card');
   bannerEl.classList.remove('reveal');
+  bannerTextEl.classList.remove('reveal');
   cardEl.classList.remove('reveal');
   lbCardEl.classList.remove('reveal');
 
   endScreen.classList.add('visible');
   setTimeout(() => bannerEl.classList.add('reveal'), 150);
+  setTimeout(() => bannerTextEl.classList.add('reveal'), 650);
   setTimeout(() => cardEl.classList.add('reveal'), 750);
   setTimeout(() => lbCardEl.classList.add('reveal'), 930);
 
-  // Accuracy absorption animation — waits for the score card to finish flipping in
+  // Accuracy absorption animation — waits for the score card to finish flipping in,
+  // then holds long enough to actually read the bonus before it rolls into the score.
   if (accuracy < 100 && score > 0) {
     await delay(1300);
     endAccuracyEl.textContent = `+${accuracy}% accuracy`;
     endAccuracyEl.classList.add('visible');
-    await delay(900);
+    await delay(1500);
     await animateScoreRoll(endScoreEl, score, finalScore, 700);
-    await delay(400);
+    await delay(600);
     endAccuracyEl.classList.remove('visible');
     endAccuracyEl.classList.add('absorb');
     await delay(500);
@@ -1236,10 +1265,9 @@ async function endGame() {
     endScoreEl.textContent = fmtScore(finalScore);
   }
 
-  // Fetch + render leaderboard
+  // Render leaderboard (fetch was already kicked off above)
   if (sb) {
-    document.getElementById('lbList').innerHTML = '<p class="lb-loading">Loading...</p>';
-    await sbFetchLeaderboard();
+    await lbFetchPromise;
     renderLeaderboard(finalScore);
   } else {
     document.getElementById('lbList').innerHTML = '<p class="lb-empty">Leaderboard unavailable offline.</p>';
