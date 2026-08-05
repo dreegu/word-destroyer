@@ -149,7 +149,11 @@
   #endFlash.flash { opacity:1; transition:opacity 0.06s ease; }
 
   /* Banner — unfurls open from the center like a scroll, then the text fades/rises in */
-  .end-banner { display:flex; align-items:center; justify-content:center; margin-bottom:24px;
+  /* width:fit-content — without it, .end-banner (a block-level flex container) stretches
+     to the full width of .end-inner, and its grain overlay (inset:0) bleeds into the
+     empty page background on both sides instead of staying on just the visible bar. */
+  .end-banner { display:flex; align-items:center; justify-content:center;
+    width:fit-content; margin:0 auto 24px;
     position:relative;
     transform:scaleX(0.06); opacity:0; transform-origin:50% 50%;
     transition:transform 0.6s cubic-bezier(0.16,1,0.3,1), opacity 0.25s ease; }
@@ -166,17 +170,18 @@
   .end-layout { display:flex; flex-direction:column; gap:16px; }
   @media (min-width:700px) { .end-layout { flex-direction:row; align-items:stretch; gap:24px; perspective:1400px; } }
 
-  /* Shared card chrome — like a sheet of paper on its side: rises up as a thin edge-on
-     line (fading in as it rises), THEN rotates open to reveal its face. Two distinct
-     stages in one keyframe timeline, not a blended simultaneous transform. */
+  /* Shared card chrome — a thin vertical line rises up off the bottom, then
+     rotates open on a VERTICAL axis through its own center (like a card spinning
+     open edge-on, not a flap hinging up). Two distinct stages in one keyframe
+     timeline: rise (still a sliver) → rotate (line widens into the full face). */
   @keyframes cardFlipUp {
-    0%   { opacity:0; transform:translateY(40px) rotateX(90deg); }
-    45%  { opacity:1; transform:translateY(0)     rotateX(90deg); } /* risen into place, still edge-on — just a line */
-    100% { opacity:1; transform:translateY(0)     rotateX(0deg);  } /* rotates open, face revealed */
+    0%   { opacity:0; transform:translateY(40px) rotateY(90deg); }
+    45%  { opacity:1; transform:translateY(0)     rotateY(90deg); } /* risen into place, still edge-on — just a vertical line */
+    100% { opacity:1; transform:translateY(0)     rotateY(0deg);  } /* rotates open on the vertical axis, face revealed */
   }
   .end-card, .end-lb-card { border:1px solid var(--fg); padding:32px 20px;
-    display:flex; flex-direction:column; gap:24px; background:var(--bg);
-    opacity:0; transform:translateY(40px) rotateX(90deg); transform-origin:50% 50%; }
+    display:flex; flex-direction:column; gap:24px;
+    opacity:0; transform:translateY(40px) rotateY(90deg); transform-origin:50% 50%; }
   .end-lb-card { gap:16px; }
   @media (min-width:700px) { .end-card, .end-lb-card { flex:1; min-width:0; } }
   @media (max-width:699px) {
@@ -197,11 +202,15 @@
   /* Scorecard */
   .score-block { display:flex; flex-direction:column; gap:16px; }
   .stats-block { display:flex; flex-direction:column; gap:8px; }
-  .end-score-row { display:flex; align-items:flex-end; justify-content:flex-end; gap:16px; }
-  .end-score { font-family:var(--font-display); font-size:clamp(52px,9vw,80px); font-weight:800;
-    letter-spacing:-0.02em; line-height:0.8; flex:1; }
+  /* Score number always occupies the full row, left-aligned. The badge/accuracy
+     label are positioned absolutely bottom-right, in the same overlap slot — they
+     can never affect the number's box regardless of which one (or neither) shows. */
+  .end-score-row { position:relative; }
+  .end-score { display:block; width:100%; text-align:left;
+    font-family:var(--font-display); font-size:clamp(52px,9vw,80px); font-weight:800;
+    letter-spacing:-0.02em; line-height:0.8; }
 
-  .top-score-badge { display:flex; align-items:center; }
+  .top-score-badge { position:absolute; right:0; bottom:0; display:flex; align-items:center; }
   .top-score-badge.hidden { display:none; }
   .top-score-badge img { display:block; height:16px; width:auto; flex-shrink:0; }
   .top-score-badge-label { background:#111; color:#fff; height:16px; display:flex; align-items:center;
@@ -210,8 +219,9 @@
   @keyframes badgePop { from{transform:scale(0.6);opacity:0} 70%{transform:scale(1.06)} to{transform:scale(1);opacity:1} }
   .top-score-badge.pop-in { animation:badgePop 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
 
-  .end-accuracy-label { font-family:var(--font-mono); font-size:13px; font-weight:400; line-height:1; letter-spacing:0.06em;
-    text-transform:uppercase; color:var(--muted);
+  .end-accuracy-label { position:absolute; right:0; bottom:0;
+    font-family:var(--font-mono); font-size:13px; font-weight:400; line-height:1; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--muted); white-space:nowrap;
     opacity:0; transform:translateY(4px);
     transition:opacity 0.35s ease, transform 0.35s ease; }
   .end-accuracy-label.visible { opacity:1; transform:translateY(0); }
@@ -253,13 +263,17 @@
   .lb-rank { font-size:10px; font-weight:400; flex-shrink:0; }
   .lb-name { width:31px; flex-shrink:0; }
   .lb-score { flex:1; text-align:right; font-variant-numeric:tabular-nums; }
-  .lb-row.lb-mine { background:#111; color:#fff; padding:8px; margin:0 -8px; border-bottom:none; }
+  /* .lb-row is already full-width inside .lb-list (no side padding on the list itself),
+     so a plain background paints edge-to-edge on its own — no bleed/negative-margin
+     trick needed. The earlier padding+negative-margin combo made these rows *wider*
+     than the card's own padding allows, which is what caused the visible overflow. */
+  .lb-row.lb-mine { background:#111; color:#fff; padding:8px 0; border-bottom:none; }
   .lb-empty, .lb-loading { font-family:var(--font-mono); font-size:10px; font-weight:400; line-height:1.4;
     color:var(--muted); padding:16px 0; letter-spacing:0.08em; text-transform:uppercase; }
 
   /* New high score entry row */
   .lb-row.lb-entry { background:#111; color:#f7f7f7; align-items:center;
-    padding:8px; margin:0 -8px; border-bottom:none; }
+    padding:8px 0; border-bottom:none; }
   .lb-entry-icon { width:12px; height:12px; flex-shrink:0; display:block;
     transform:rotate(45deg); filter:invert(1); }
   .lb-initials-box { flex:1; min-width:0; border:0.5px solid #fff; display:flex;
@@ -267,7 +281,7 @@
   .lb-initials-stack { position:relative; flex:1; min-width:0; }
   .lb-initials-label { font-size:8px; font-weight:400; line-height:1; margin-bottom:4px; color:#f7f7f7; white-space:nowrap; }
   #initialsInput { font-family:var(--font-mono); font-size:16px; font-weight:500; line-height:1.2;
-    letter-spacing:1px; text-transform:uppercase; width:100%; max-width:64px;
+    letter-spacing:1px; text-transform:uppercase; width:100%;
     border:none; background:transparent; outline:none; color:#f7f7f7; padding:0; }
   #initialsInput::placeholder { color:rgba(247,247,247,0.4); }
   #submitInitialsBtn { background:none; border:none; cursor:pointer; padding:0;
@@ -1262,6 +1276,13 @@ async function endGame() {
   bannerTextEl.classList.remove('reveal');
   cardEl.classList.remove('reveal');
   lbCardEl.classList.remove('reveal');
+  // Reset badge/accuracy too — on a replay after a previous top score, the badge
+  // would otherwise still be showing (un-hidden) right through this game's own
+  // accuracy sequence, fighting it for the same slot.
+  document.getElementById('topScoreBadge').classList.add('hidden');
+  document.getElementById('topScoreBadge').classList.remove('pop-in');
+  endAccuracyEl.classList.remove('visible', 'absorb');
+  endAccuracyEl.textContent = '';
 
   endScreen.classList.add('visible');
   setTimeout(() => bannerEl.classList.add('reveal'), 150);
