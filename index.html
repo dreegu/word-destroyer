@@ -34,9 +34,13 @@
   .grain-banner { opacity:0.28; }
 
   /* ── HEADER ── */
+  /* Explicit background — without one this is fully transparent and just shows
+     whatever happens to be stacked behind it, which differs by screen (canvas
+     during gameplay vs. each overlay's own backdrop elsewhere) and reads as an
+     inconsistent header when it's really an accidental one. */
   #siteHeader { position:fixed; top:0; left:0; right:0; height:var(--hh);
     display:flex; align-items:center; justify-content:space-between;
-    padding:0 24px; z-index:100;
+    padding:0 24px; z-index:100; background:var(--bg);
     border-bottom:1px solid rgba(0,0,0,0.08); }
   .logo-img { display:block; height:24px; width:auto; cursor:pointer; }
   #pauseBtn { display:none; background:none; border:none; cursor:pointer;
@@ -128,6 +132,19 @@
   #startBtn { visibility:hidden; opacity:0; transition:opacity 0.2s, visibility 0s 0.2s; }
   #startBtn.ready { visibility:visible; opacity:1; transition:opacity 0.2s, visibility 0s; }
 
+  /* Solid-fill variant, reserved for the splash screen's single hero action. The
+     bordered/sweep look above is the site's language for a contextual action sitting
+     inside a scene (destroy, resume, rewrite) — reusing it here, under the biggest
+     headline on the site, read as a stray card fragment rather than an entrance.
+     A solid mark is the higher-contrast, more deliberate shape "start everything"
+     deserves, and a sweep has nothing to reveal once the fill is already there. */
+  .btn-solid { background:var(--fg); border-color:var(--fg);
+    transition:transform 0.15s, opacity 0.2s, visibility 0s; }
+  .btn-solid .btn-label { color:var(--bg); }
+  .btn-solid .btn-sweep { display:none; }
+  .btn-solid:hover { transform:scale(1.02); }
+  .btn-solid:active { transform:scale(0.98); }
+
   /* ── PAUSE OVERLAY ── */
   #pauseOverlay { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
     background:rgba(245,245,245,0.96);
@@ -159,7 +176,6 @@
     text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
   .splash-title { font-family:var(--font-display); font-size:clamp(48px,11vw,128px); font-weight:800;
     letter-spacing:-0.02em; text-transform:uppercase; line-height:0.88; margin-bottom:44px; }
-  #splashBtn { min-width:200px; }
   .splash-lb-link { background:none; border:none; cursor:pointer; margin-top:16px;
     font-family:var(--font-mono);
     font-size:11px; font-weight:500; letter-spacing:0.1em; text-transform:uppercase;
@@ -394,7 +410,7 @@
   <div class="splash-inner">
     <p class="splash-wordmark">Word Destroyer</p>
     <h1 class="splash-title">Write it.<br>Destroy it.</h1>
-    <button class="btn" id="splashBtn">
+    <button class="btn btn-solid" id="splashBtn">
       <span class="btn-label">Start</span>
       <span class="btn-sweep"><span class="btn-label">Start</span></span>
     </button>
@@ -712,16 +728,8 @@ function resize() {
   stage.w = clamp(H * STAGE_RATIO, Math.min(STAGE_MIN_W, W), W);
   stage.x = (W - stage.w) / 2;
 
-  // On mobile the stage floors out to the full viewport width, so this keeps the
-  // original W/16 sizing exactly as before. On desktop the stage is deliberately
-  // narrower than the viewport — sized off it directly instead would read as tiny,
-  // so it gets its own, larger-per-pixel scale.
-  const isDesktopStage = stage.w < W - 0.5;
-  fontSize = isDesktopStage
-    ? clamp(Math.floor(stage.w / 8), 40, 100)
-    : clamp(Math.floor(stage.w / 16), 28, 62);
-  lineH    = fontSize * 1.25;
   updateFixedLineY();
+  fitTextSize(hiddenInput.value);
 
   if (state === 'playing' && paddle) {
     paddle.w = stage.w * PADDLE_WR;
@@ -778,6 +786,32 @@ function getLines(text) {
   });
   if (cur) lines.push(cur);
   return lines;
+}
+
+// Text wraps to more lines the longer the message gets, and every line beyond
+// the first stacks upward from the fixed baseline — with nothing capping that,
+// a long enough message pushes its own top line up past the header, off-screen
+// and un-hittable. Shrinks fontSize (and rewraps at each candidate size, since
+// wrap width depends on it) until the tallest line clears the write-header, down
+// to a floor rather than forever — an unreadably tiny line still beats an invisible
+// one. Cheap for the common case: short text fits at the ideal size on the first try.
+function fitTextSize(text) {
+  const isDesktopStage = stage.w < W - 0.5;
+  const idealSize = isDesktopStage
+    ? clamp(Math.floor(stage.w / 8), 40, 100)
+    : clamp(Math.floor(stage.w / 16), 28, 62);
+  const minSize = isDesktopStage ? 22 : 16;
+  const headerH = writeHeader.offsetHeight || 50;
+  const topLimit = headerH + 40; // canvas-space y the top line's box may not cross
+
+  for (let size = idealSize; size >= minSize; size--) {
+    fontSize = size;
+    lineH = fontSize * 1.25;
+    const lines = getLines(text);
+    const lineCount = Math.max(lines.length, 1);
+    const topOfText = fixedLineY - (lineCount - 1) * lineH - fontSize * 0.86;
+    if (topOfText >= topLimit || size === minSize) break;
+  }
 }
 
 // Header (icon + label + rule) sits directly above the writing line — since text
@@ -848,6 +882,7 @@ hiddenInput.addEventListener('input', () => {
   charCountEl.textContent  = rem <= 15 ? `${rem} LEFT` : '';
   charCountEl.classList.toggle('warn', rem <= 5);
   startBtn.classList.toggle('ready', len > 0);
+  fitTextSize(hiddenInput.value);
   positionWriteHeader();
   playTyping();
 });
@@ -1240,6 +1275,7 @@ function goToLanding() {
   cursorVisible = true; cursorTimer = 0;
   selStart = 0; selEnd = 0;
 
+  fitTextSize(''); // reset off whatever size the previous message shrank to
   writeHeader.classList.remove('hidden');
   positionWriteHeader();
   ideaPromptEl.classList.remove('hidden');
