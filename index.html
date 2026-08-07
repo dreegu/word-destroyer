@@ -51,7 +51,7 @@
     display:flex; align-items:center; }
   #soundBtn:hover { opacity:1; }
   #soundBtn.muted { opacity:0.2; }
-  #soundBtn svg { width:18px; height:18px; display:block; }
+  #soundBtn img { width:20px; height:20px; display:block; }
 
   /* ── CANVAS ── */
   #gameCanvas { position:fixed; top:var(--hh); left:0;
@@ -96,18 +96,29 @@
     transition: left 0.45s cubic-bezier(0.65,0,0.35,1), top 0.45s cubic-bezier(0.65,0,0.35,1),
       width 0.45s cubic-bezier(0.65,0,0.35,1), height 0.45s cubic-bezier(0.65,0,0.35,1),
       background-color 0.45s ease, border-color 0.45s ease; }
-  .paddle-morph-label { font-family:var(--font-display); font-weight:800; font-size:15px;
-    letter-spacing:0.02em; text-transform:uppercase; color:var(--fg);
+  .paddle-morph-label { font-family:var(--font-display); font-weight:800; font-size:24px;
+    letter-spacing:-0.02em; text-transform:uppercase; color:var(--fg);
     white-space:nowrap; transition:opacity 0.2s ease; }
+
+  /* Countdown — one word at a time, centered over the stage, between the paddle
+     landing and the ball actually dropping. Reuses .pop-in (same entrance already
+     used for the top-score badge) rather than inventing new motion. */
+  #countdownOverlay { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
+    display:flex; align-items:center; justify-content:center;
+    z-index:65; pointer-events:none; }
+  #countdownOverlay.hidden { display:none; }
+  .countdown-word { font-family:var(--font-display); font-weight:800;
+    font-size:clamp(48px,11vw,96px); letter-spacing:-0.02em; text-transform:uppercase;
+    color:var(--fg); line-height:0.9; }
 
   /* Shared button chrome — same bordered box + sweep-fill hover as the end-screen
      cards (.btn-block below), just sized for standalone use instead of a card's
      full-width/container-query sizing. Hidden until text exists (#startBtn). */
   .btn { position:relative; overflow:hidden; display:inline-flex; align-items:center; justify-content:center;
-    padding:16px 44px; border:1px solid var(--fg); background:none; cursor:pointer;
+    padding:20px 40px; border:1px solid var(--fg); background:none; cursor:pointer;
     font-family:var(--font-display);
-    font-size:15px; font-weight:800; letter-spacing:0.02em;
-    text-transform:uppercase; line-height:0.9;
+    font-size:clamp(20px,5vw,26px); font-weight:800; letter-spacing:-0.02em;
+    text-transform:uppercase; line-height:1;
     transition:opacity 0.2s, visibility 0s; }
   .btn .btn-label { position:relative; color:var(--fg); white-space:nowrap; pointer-events:none; }
   .btn .btn-sweep { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
@@ -128,26 +139,15 @@
   .pause-title { font-family:var(--font-display); font-size:clamp(40px,6vw,72px); font-weight:800;
     letter-spacing:-0.02em; text-transform:uppercase; line-height:0.9; margin-bottom:24px; }
 
-  /* ── COMBO ── */
-  #comboDisplay { position:fixed; top:calc(var(--hh) + 16px);
-    left:50%; transform:translateX(-50%); font-family:var(--font-display);
-    font-size:32px; font-weight:800; letter-spacing:-0.02em; text-transform:uppercase;
-    opacity:0; transition:opacity 0.3s; pointer-events:none; z-index:20; }
-
-  /* ── GAME SCORE + FEED (top-right during game) ── */
-  #gameScoreArea { position:fixed; top:calc(var(--hh) + 16px); right:24px;
-    display:flex; flex-direction:column; align-items:flex-end; gap:4px;
+  /* ── GAME HUD (score + multiplier, hugging the stage's left wall) ── */
+  #gameScoreArea { position:fixed; top:calc(var(--hh) + 16px);
+    display:flex; flex-direction:column; gap:20px;
     pointer-events:none; z-index:60; opacity:0; transition:opacity 0.3s; }
   #gameScoreArea.visible { opacity:1; }
-  #gameScore { font-family:var(--font-display); font-size:28px; font-weight:800; letter-spacing:-0.02em; line-height:0.9; }
-  #gameScoreLabel { font-size:9px; font-weight:700; letter-spacing:0.12em;
-    text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
-  #scoreFeed { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
-  .feed-entry { font-family:var(--font-display); font-size:12px; font-weight:800; letter-spacing:-0.02em;
-    text-transform:uppercase; color:var(--fg);
-    animation:feedSlide 0.12s ease forwards, feedFade 0.4s ease 1s forwards; }
-  @keyframes feedSlide { from{opacity:0;transform:translateX(6px)} to{opacity:1;transform:none} }
-  @keyframes feedFade  { to{opacity:0} }
+  .hud-label { font-family:var(--font-mono); font-size:8px; font-weight:400; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+  .hud-value { font-family:var(--font-mono); font-size:16px; font-weight:500; letter-spacing:0.01em;
+    color:var(--fg); line-height:1; }
 
   /* ── SPLASH SCREEN ── */
   #splashScreen { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
@@ -379,18 +379,8 @@
   <img class="logo-img" id="logoBtn" src="logo.svg" alt="Word Destroyer">
   <button id="pauseBtn">Pause</button>
   <button id="soundBtn" title="Toggle sound">
-    <!-- sound-on icon -->
-    <svg id="iconSoundOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-    </svg>
-    <!-- sound-off icon -->
-    <svg id="iconSoundOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
-      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-      <line x1="23" y1="9" x2="17" y2="15"/>
-      <line x1="17" y1="9" x2="23" y2="15"/>
-    </svg>
+    <img id="iconSoundOn" src="icons/Icon=Sound ON.svg" alt="">
+    <img id="iconSoundOff" src="icons/Icon=Sound OFF.svg" alt="" style="display:none">
   </button>
 </header>
 
@@ -435,14 +425,19 @@
   </button>
 </div>
 
-<div id="comboDisplay"></div>
 <div id="endFlash"></div>
+<div id="countdownOverlay" class="hidden"><span class="countdown-word" id="countdownWord"></span></div>
 
-<!-- Score + feed during gameplay -->
+<!-- Score + multiplier during gameplay -->
 <div id="gameScoreArea">
-  <div id="gameScore">0</div>
-  <div id="gameScoreLabel">Score</div>
-  <div id="scoreFeed"></div>
+  <div>
+    <div class="hud-label">Score</div>
+    <div id="gameScore" class="hud-value">0</div>
+  </div>
+  <div>
+    <div class="hud-label">Multiplier</div>
+    <div id="gameMultiplier" class="hud-value">X1</div>
+  </div>
 </div>
 
 <!-- Pause overlay -->
@@ -599,12 +594,13 @@ const ideaPromptEl  = document.getElementById('ideaPrompt');
 const splashScreen  = document.getElementById('splashScreen');
 const splashBtn     = document.getElementById('splashBtn');
 const lbScreen      = document.getElementById('lbScreen');
-const comboEl       = document.getElementById('comboDisplay');
-const gameScoreArea = document.getElementById('gameScoreArea');
-const gameScoreEl   = document.getElementById('gameScore');
-const scoreFeed     = document.getElementById('scoreFeed');
+const gameScoreArea   = document.getElementById('gameScoreArea');
+const gameScoreEl     = document.getElementById('gameScore');
+const gameMultiplierEl = document.getElementById('gameMultiplier');
 const endScreen     = document.getElementById('endScreen');
 const endFlash      = document.getElementById('endFlash');
+const countdownOverlay = document.getElementById('countdownOverlay');
+const countdownWordEl  = document.getElementById('countdownWord');
 const pauseOverlay  = document.getElementById('pauseOverlay');
 const pauseBtn      = document.getElementById('pauseBtn');
 const resumeBtn     = document.getElementById('resumeBtn');
@@ -681,13 +677,12 @@ let W, H, fontSize, lineH, fixedLineY;
 let stage = { x: 0, w: 0 }; // the phone-shaped play column, centered in the viewport
 let stageRevealStart = 0;
 let paddle, balls, bricks, particles;
-let score, bounces, ballsLaunched, maxCombo, combo, comboTimer;
+let score, bounces, ballsLaunched, maxCombo, combo;
 let lettersDestroyed, wordsDestroyed;
 let totalLetters, totalShots, goodShots, paddleHits, finalScore;
 let animId;
 let shakeTime = 0, shakeMag = 0;
 let mouseX = 0;
-let comboHideTimer;
 let inputFocused = false;
 let cursorVisible = true, cursorTimer = 0;
 let selStart = 0, selEnd = 0;
@@ -734,9 +729,9 @@ function resize() {
     paddle.y = H - 60;
   }
 
-  // HUD hugs the stage's right edge, not the viewport's — on mobile stage fills
-  // the viewport so this collapses back to the original fixed 24px inset.
-  gameScoreArea.style.right = (W - (stage.x + stage.w) + 24) + 'px';
+  // HUD hugs the stage's left wall, not the viewport's — on mobile stage fills
+  // the viewport so this collapses back to a plain fixed 24px inset.
+  gameScoreArea.style.left = (stage.x + 24) + 'px';
 
   positionWriteHeader();
   positionIdeaPrompt();
@@ -971,9 +966,15 @@ hiddenInput.addEventListener('keydown', e => {
   if (e.key === 'Enter' && hiddenInput.value.trim()) startGame();
 });
 
+let startingGame = false;
 function startGame() {
+  // state stays 'landing' throughout the morph itself (it only flips to 'readying'
+  // once the morph lands), so an Enter-press or stray click in that window would
+  // otherwise re-enter this whole function — this flag is what actually closes it.
+  if (state !== 'landing' || startingGame) return;
   const msg = hiddenInput.value.trim().toUpperCase();
   if (!msg) return;
+  startingGame = true;
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
   hiddenInput.blur(); // dismiss keyboard, remove text cursor
@@ -989,19 +990,22 @@ function startGame() {
   paddle = { x: stageCX, y: H-60, w: stage.w*PADDLE_WR, h: PADDLE_H };
 
   morphStartBtnToPaddle(() => {
-    state = 'playing';
-    sbIncrementMessages();
+    // "readying" — paddle, walls and bricks are all in place and rendering (the
+    // loop is already running), but update() only drives ball physics once state
+    // is 'playing', so the board sits still under the Ready/Set/Destroy beat below.
+    state = 'readying';
     landingUI.classList.add('hidden');
     pauseBtn.classList.add('visible');
     gameScoreArea.classList.add('visible');
     gameScoreEl.textContent = '0';
+    gameMultiplierEl.textContent = 'X1';
 
     score = 0; bounces = 0; ballsLaunched = 1;
-    maxCombo = 1; combo = 1; comboTimer = 0;
+    maxCombo = 1; combo = 1;
     lettersDestroyed = 0; wordsDestroyed = 0;
     totalLetters = 0; totalShots = 0; goodShots = 0; paddleHits = 0;
 
-    balls = [spawnBall(stageCX, paddle.y - BALL_R - 2)];
+    balls = [];
     particles = [];
 
     stageRevealStart = performance.now();
@@ -1010,7 +1014,32 @@ function startGame() {
     if (animId) cancelAnimationFrame(animId);
     lastTimestamp = 0;
     loop();
+
+    playCountdown(() => {
+      state = 'playing';
+      sbIncrementMessages();
+      balls = [spawnBall(stageCX, paddle.y - BALL_R - 2)];
+      lastTimestamp = 0;
+    });
   });
+}
+
+// One word at a time, centered over the board — plays after the paddle has
+// landed and the stage/bricks have settled, right before the ball drops.
+function playCountdown(onDone) {
+  const words = ['Ready.', 'Set.', 'Destroy!'];
+  let i = 0;
+  countdownOverlay.classList.remove('hidden');
+  function step() {
+    countdownWordEl.textContent = words[i];
+    countdownWordEl.classList.remove('pop-in');
+    void countdownWordEl.offsetWidth; // restart the animation for each word
+    countdownWordEl.classList.add('pop-in');
+    i++;
+    if (i < words.length) setTimeout(step, 500);
+    else setTimeout(() => { countdownOverlay.classList.add('hidden'); onDone(); }, 480);
+  }
+  step();
 }
 
 // Ghost element that travels from the Destroy button's own screen position into
@@ -1176,6 +1205,8 @@ async function goToLbPage() {
 function goToSplash() {
   cancelAnimationFrame(animId);
   state = 'splash';
+  startingGame = false;
+  countdownOverlay.classList.add('hidden');
   splashScreen.classList.remove('hidden');
   lbScreen.classList.add('hidden');
   landingUI.classList.add('hidden');
@@ -1194,6 +1225,8 @@ function goToSplash() {
 function goToLanding() {
   cancelAnimationFrame(animId);
   state = 'landing';
+  startingGame = false;
+  countdownOverlay.classList.add('hidden');
   splashScreen.classList.add('hidden');
   pauseOverlay.classList.remove('visible');
   endScreen.classList.remove('visible');
@@ -1201,8 +1234,6 @@ function goToLanding() {
   pauseBtn.classList.remove('visible');
   gameScoreArea.classList.remove('visible');
   landingUI.classList.remove('hidden');
-  scoreFeed.innerHTML = '';
-  comboEl.style.opacity = '0';
   hiddenInput.value = '';
   startBtn.classList.remove('ready');
   charCountEl.textContent = '';
@@ -1248,8 +1279,6 @@ function update(dt = 1) {
   if (state !== 'playing') return;
 
   paddle.x += (clamp(mouseX, stage.x+paddle.w/2, stage.x+stage.w-paddle.w/2) - paddle.x) * 0.25 * dt;
-  comboTimer -= dt;
-  if (comboTimer <= 0) { showCombo(false); } // hide display; combo value persists until ball drop
   if (shakeTime > 0) shakeTime -= dt;
 
   for (let i = balls.length-1; i >= 0; i--) {
@@ -1268,7 +1297,7 @@ function update(dt = 1) {
       if (balls.length === 0) {
         balls.push(spawnBall(paddle.x, paddle.y-BALL_R-2));
         ballsLaunched++;
-        combo = 1; comboTimer = 0; showCombo(false);
+        combo = 1; updateMultiplier();
       }
       continue;
     }
@@ -1299,13 +1328,12 @@ function update(dt = 1) {
       if (dx*dx+dy*dy < b.r*b.r) {
         if (Math.abs(dx) > Math.abs(dy)) b.vx *= -1; else b.vy *= -1;
         br.flashTimer = 5; bounces++;
-        combo++; comboTimer = 90;
+        combo++;
         if (combo > maxCombo) maxCombo = combo;
-        showCombo(true);
+        updateMultiplier();
         b.hitThisShot = true;
         const pts = Math.round(combo * 1000 / Math.max(1, totalLetters));
         score += pts;
-        addFeed(`+${pts.toLocaleString()}`);
         updateScore();
         br.dead = true; br.deathTimer = 0;
         lettersDestroyed++;
@@ -1340,7 +1368,6 @@ function update(dt = 1) {
 function checkWord(wIdx) {
   if (bricks.filter(b => b.wordIdx === wIdx).every(b => b.dead)) {
     wordsDestroyed++;
-    addFeed('WORD!');
     shake(5, 8);
   }
 }
@@ -1447,24 +1474,10 @@ function burst(x, y, n) {
   }
 }
 
-function addFeed(text) {
-  const el = document.createElement('div');
-  el.className = 'feed-entry'; el.textContent = text;
-  scoreFeed.prepend(el);
-  setTimeout(() => el.remove(), 1600);
-}
-
 function shake(mag, dur) { if (mag > shakeMag) { shakeMag = mag; shakeTime = dur; } }
 
-function showCombo(on) {
-  if (on && combo > 1) {
-    comboEl.textContent = `×${combo}`; comboEl.style.opacity = '1';
-    clearTimeout(comboHideTimer);
-    comboHideTimer = setTimeout(() => comboEl.style.opacity='0', 1200);
-  } else comboEl.style.opacity = '0';
-}
-
 function updateScore() { gameScoreEl.textContent = score.toLocaleString(); }
+function updateMultiplier() { gameMultiplierEl.textContent = `X${combo}`; }
 
 // ═══════════════════════════════════════
 //   SHREDDER BANNER DECORATION
@@ -1796,19 +1809,19 @@ function renderLeaderboard(userScore) {
   if (qualifies) {
     const input = document.getElementById('initialsInput');
     const btn   = document.getElementById('submitInitialsBtn');
+    const submit = async () => {
+      const initials = (input?.value || '').trim();
+      if (!initials) { input?.focus(); return; }
+      btn.textContent = '...'; btn.disabled = true;
+      await sbSubmitScore(initials, userScore);
+      renderLeaderboardFinal(userScore, initials);
+    };
     if (input) {
       input.addEventListener('input', () => { input.value = input.value.toUpperCase(); });
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
       setTimeout(() => input.focus(), 50);
     }
-    if (btn) {
-      btn.addEventListener('click', async () => {
-        const initials = (input?.value || '').trim();
-        if (!initials) { input?.focus(); return; }
-        btn.textContent = '...'; btn.disabled = true;
-        await sbSubmitScore(initials, userScore);
-        renderLeaderboardFinal(userScore, initials);
-      });
-    }
+    if (btn) btn.addEventListener('click', submit);
   }
 
   return qualifies;
