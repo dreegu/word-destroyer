@@ -36,7 +36,7 @@
   /* ── HEADER ── */
   #siteHeader { position:fixed; top:0; left:0; right:0; height:var(--hh);
     display:flex; align-items:center; justify-content:space-between;
-    padding:0 24px; z-index:100; background:var(--bg);
+    padding:0 24px; z-index:100;
     border-bottom:1px solid rgba(0,0,0,0.08); }
   .logo-img { display:block; height:24px; width:auto; cursor:pointer; }
   #pauseBtn { display:none; background:none; border:none; cursor:pointer;
@@ -159,7 +159,10 @@
     transition:transform 0.6s cubic-bezier(0.16,1,0.3,1), opacity 0.25s ease; }
   .end-banner.reveal { transform:scaleX(1); opacity:1; }
   .end-banner img { display:block; height:40px; width:auto; flex-shrink:0; }
-  .end-banner-msg { background:#111; color:#fff; height:40px; display:flex; align-items:center;
+  #shredLeft, #shredRight { display:block; flex-shrink:0; }
+  /* Height is synced live to the shredder pattern's actual generated height
+     (CFG.rows * CFG.cell) via the --bar-h custom property, not hardcoded — see shredStart(). */
+  .end-banner-msg { background:#111; color:#fff; height:var(--bar-h, 40px); display:flex; align-items:center;
     justify-content:center; padding:0 16px; white-space:nowrap; overflow:hidden;
     font-family:var(--font-display); font-weight:400; letter-spacing:-0.02em; line-height:0.8;
     font-size:clamp(20px,4vw,32px); }
@@ -254,12 +257,26 @@
     font-family:var(--font-mono); font-size:10px; font-weight:400; line-height:1; letter-spacing:1px;
     text-transform:uppercase; color:rgba(17,17,17,0.5); }
 
-  .end-actions { display:flex; flex-direction:column; gap:24px; margin-top:auto; padding-top:8px; }
-  .btn-block { border:1px solid var(--fg); padding:4px; width:100%; background:none;
-    cursor:pointer; text-align:center; font-family:var(--font-display); font-weight:800; line-height:1;
-    font-size:clamp(18px,3vw,26px); letter-spacing:-0.02em; text-transform:uppercase;
-    color:var(--fg); transition:background 0.15s, color 0.15s; }
-  .btn-block:hover { background:var(--fg); color:var(--bg); }
+  /* container-type so button font-size below can be sized off the button's ACTUAL
+     width (cqw), not the full viewport (vw) — the two diverge a lot here since the
+     card is nowhere near full-width, which is what let "Destroy Another Message"
+     overflow its own button at the vw-based size. */
+  .end-actions { display:flex; flex-direction:column; gap:24px; margin-top:auto; padding-top:8px;
+    container-type:inline-size; }
+  /* Text sits flush against the border — no padding, box height is purely the text's own
+     line-height. Hover is a black sweep (clip-path, not width, so neither label ever
+     reflows), and BOTH labels — the resting black one and the white one riding inside the
+     sweep — are stacked in the exact same position, so the sweep boundary always cuts
+     cleanly across live text: black-on-cream ahead of it, white-on-black behind it. */
+  .btn-block { position:relative; overflow:hidden; border:1px solid var(--fg); padding:0; width:100%;
+    background:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-display); font-weight:800; line-height:1;
+    font-size:clamp(16px,9.2cqw,28px); letter-spacing:-0.02em; text-transform:uppercase; }
+  .btn-block .btn-label { position:relative; color:var(--fg); white-space:nowrap; pointer-events:none; }
+  .btn-block .btn-sweep { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:var(--fg); clip-path:inset(0 100% 0 0); transition:clip-path 0.2s cubic-bezier(0.65,0,0.35,1); }
+  .btn-block .btn-sweep .btn-label { color:var(--bg); }
+  .btn-block:hover .btn-sweep { clip-path:inset(0 0 0 0); }
 
   /* Leaderboard card */
   .lb-list { display:flex; flex-direction:column; }
@@ -398,9 +415,9 @@
   <div class="grain-layer grain-bg"></div>
   <div class="end-inner">
     <div class="end-banner">
-      <img src="icons/TilesLeft.svg" alt="">
+      <div id="shredLeft"></div>
       <div class="end-banner-msg"><span id="bannerText">Message Destroyed</span></div>
-      <img src="icons/TilesRight.svg" alt="">
+      <div id="shredRight"></div>
       <div class="grain-layer grain-banner"></div>
     </div>
     <div class="end-layout">
@@ -433,8 +450,14 @@
           </div>
         </div>
         <div class="end-actions">
-          <button class="btn-block" id="restartBtn">Destroy Another Message</button>
-          <button class="btn-block" id="shareBtn">Share Score</button>
+          <button class="btn-block" id="restartBtn">
+            <span class="btn-label">Destroy Another Message</span>
+            <span class="btn-sweep"><span class="btn-label">Destroy Another Message</span></span>
+          </button>
+          <button class="btn-block" id="shareBtn">
+            <span class="btn-label">Share Score</span>
+            <span class="btn-sweep"><span class="btn-label">Share Score</span></span>
+          </button>
         </div>
       </div>
       <!-- Leaderboard (right on desktop, bottom on mobile) -->
@@ -956,6 +979,7 @@ function goToSplash() {
   gameScoreArea.classList.remove('visible');
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, W, H);
+  shredStop(); // leaving the end screen — no reason to keep the banner ticking off-screen
 }
 
 function goToLanding() {
@@ -964,6 +988,7 @@ function goToLanding() {
   splashScreen.classList.add('hidden');
   pauseOverlay.classList.remove('visible');
   endScreen.classList.remove('visible');
+  shredStop(); // leaving the end screen — no reason to keep the banner ticking off-screen
   pauseBtn.classList.remove('visible');
   gameScoreArea.classList.remove('visible');
   landingUI.classList.remove('hidden');
@@ -1205,6 +1230,136 @@ function showCombo(on) {
 function updateScore() { gameScoreEl.textContent = score.toLocaleString(); }
 
 // ═══════════════════════════════════════
+//   SHREDDER BANNER DECORATION
+//   Ported from the Shred Pattern Generator tool — a conveyor of pixel columns
+//   spawns dense next to the bar, ages one slot per tick, and erodes with distance
+//   travelled. Exposed as shredStart()/shredStop() so its lifecycle can be tied to
+//   the end screen being visible, rather than ticking forever in the background.
+// ═══════════════════════════════════════
+const SHRED_CFG = { shape:'banner', rows:5, cols:6, cell:10, curve:'ease', strength:0.86,
+  checkerBias:0.5, seed:1337, speed:140, mirror:true, motion:'choppy' };
+
+const shredStart = (() => {
+  const CFG = SHRED_CFG;
+  const NS = 'http://www.w3.org/2000/svg';
+
+  function hashRand(seed, genId, row) {
+    let h = (seed ^ (genId * 374761393) ^ (row * 668265263)) >>> 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h = (h ^ (h >>> 16)) >>> 0;
+    return h / 4294967295;
+  }
+  function curveFn(t, kind) {
+    if (kind === 'linear') return t;
+    if (kind === 'quad') return t * t;
+    return t * t * (3 - 2 * t);
+  }
+  function densityForT(t) {
+    const minDensity = 1 - CFG.strength * (1 - 1 / CFG.rows);
+    const eroded = curveFn(t, CFG.curve);
+    return 1 - eroded * (1 - minDensity);
+  }
+  function densityAt(index) {
+    const t = CFG.cols <= 1 ? 1 : index / (CFG.cols - 1);
+    return densityForT(t);
+  }
+  const CHECKER_SHIFT_MAX = 0.35;
+  function makeColumn(genId, seedOffset) {
+    const priorities = [];
+    for (let r = 0; r < CFG.rows; r++) {
+      const raw = hashRand(CFG.seed + seedOffset, genId, r);
+      const isChecker = (r % 2) === (genId % 2);
+      const shift = CFG.checkerBias * CHECKER_SHIFT_MAX;
+      priorities.push(isChecker ? Math.max(0, raw - shift) : Math.min(1, raw + shift));
+    }
+    return { genId, priorities };
+  }
+  function makeSide(seedOffset) { return { columns: [], nextGenId: 0, seedOffset }; }
+  function resetSide(side, count) {
+    side.columns = []; side.nextGenId = 0;
+    for (let i = 0; i < count; i++) side.columns.push(makeColumn(side.nextGenId++, side.seedOffset));
+  }
+  function tickSide(side) {
+    side.columns.unshift(makeColumn(side.nextGenId++, side.seedOffset));
+    if (side.columns.length > CFG.cols) side.columns.pop();
+  }
+  function makeDom(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return null;
+    const svg = document.createElementNS(NS, 'svg');
+    // SVG defaults to display:inline, which reserves a few px of baseline/descender
+    // space below it — inflating the wrapping div's height past the SVG's own and
+    // throwing off the flex centering against the message bar. display:block removes it.
+    svg.style.display = 'block';
+    el.innerHTML = '';
+    el.appendChild(svg);
+    return { el, root: svg, cols: {} };
+  }
+  function syncDom(dom, side, mirrored, animate, densityFn) {
+    if (!dom) return;
+    const w = side.columns.length * CFG.cell, h = CFG.rows * CFG.cell;
+    dom.root.setAttribute('width', w);
+    dom.root.setAttribute('height', h);
+    dom.root.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const seen = {};
+    side.columns.forEach((col, i) => {
+      seen[col.genId] = true;
+      let entry = dom.cols[col.genId];
+      const x = mirrored ? (side.columns.length - 1 - i) * CFG.cell : i * CFG.cell;
+      if (!entry) {
+        const g = document.createElementNS(NS, 'g');
+        g.style.transition = 'none';
+        const rects = [];
+        for (let r = 0; r < CFG.rows; r++) {
+          const rect = document.createElementNS(NS, 'rect');
+          rect.setAttribute('fill', '#111111');
+          g.appendChild(rect);
+          rects.push(rect);
+        }
+        dom.root.appendChild(g);
+        entry = { g, rects };
+        dom.cols[col.genId] = entry;
+      }
+      for (let r2 = 0; r2 < CFG.rows; r2++) {
+        entry.rects[r2].setAttribute('width', CFG.cell);
+        entry.rects[r2].setAttribute('height', CFG.cell);
+        entry.rects[r2].setAttribute('y', r2 * CFG.cell);
+      }
+      entry.g.style.transition = (animate && CFG.motion === 'smooth') ? `transform ${CFG.speed}ms linear` : 'none';
+      entry.g.setAttribute('transform', `translate(${x},0)`);
+      const d = densityFn(col, i);
+      for (let r3 = 0; r3 < CFG.rows; r3++) {
+        entry.rects[r3].style.display = col.priorities[r3] < d ? '' : 'none';
+      }
+    });
+    for (const genId in dom.cols) {
+      if (!seen[genId]) { dom.cols[genId].g.remove(); delete dom.cols[genId]; }
+    }
+  }
+
+  let left, right, leftDom, rightDom, timer = null;
+
+  function start() {
+    stop(); // guard against a stray double-start (e.g. replaying before the previous run's stop ran)
+    left = makeSide(0); right = makeSide(104729);
+    resetSide(left, CFG.cols); resetSide(right, CFG.cols);
+    leftDom = makeDom('shredLeft'); rightDom = makeDom('shredRight');
+    document.documentElement.style.setProperty('--bar-h', (CFG.rows * CFG.cell) + 'px');
+    function tick(animate) {
+      tickSide(left); tickSide(right);
+      syncDom(leftDom, left, true, animate, (col, i) => densityAt(i));
+      syncDom(rightDom, CFG.mirror ? left : right, false, animate, (col, i) => densityAt(i));
+    }
+    tick(false);
+    timer = setInterval(() => tick(true), CFG.speed);
+  }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } }
+
+  window.shredStop = stop;
+  return start;
+})();
+
+// ═══════════════════════════════════════
 //   END
 // ═══════════════════════════════════════
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -1297,6 +1452,7 @@ async function endGame() {
   endAccuracyEl.textContent = '';
 
   endScreen.classList.add('visible');
+  shredStart(); // restarts cleanly even on replay — start() itself guards against a double-run
   setTimeout(() => bannerEl.classList.add('reveal'), 150);
   setTimeout(() => bannerTextEl.classList.add('reveal'), 650);
   // Score card: rise (translateY only, ~400ms) then rotate open (rotateY only, ~450ms)
@@ -1447,10 +1603,16 @@ shareBtn.addEventListener('click', () => {
   const text = `I just destroyed my words on Word Destroyer! Score: ${(finalScore||score).toLocaleString()} · ${lettersDestroyed} letters · max ×${maxCombo}\n${url}`;
   if (navigator.share) navigator.share({ title:'Word Destroyer', text, url }).catch(()=>{});
   else navigator.clipboard.writeText(text).then(() => {
-    shareBtn.textContent = 'Copied!';
-    setTimeout(() => shareBtn.textContent = 'Share Score', 2000);
+    setBtnLabel(shareBtn, 'Copied!');
+    setTimeout(() => setBtnLabel(shareBtn, 'Share Score'), 2000);
   });
 });
+// Buttons hold two stacked label copies (resting + the one riding inside the hover
+// sweep) — setting .textContent directly would wipe that structure out, so route any
+// label change through both spans instead.
+function setBtnLabel(btn, text) {
+  btn.querySelectorAll('.btn-label').forEach(el => el.textContent = text);
+}
 
 // ═══════════════════════════════════════
 //   UTILS
