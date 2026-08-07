@@ -34,10 +34,12 @@
   .grain-banner { opacity:0.28; }
 
   /* ── HEADER ── */
-  /* Explicit background — without one this is fully transparent and just shows
-     whatever happens to be stacked behind it, which differs by screen (canvas
-     during gameplay vs. each overlay's own backdrop elsewhere) and reads as an
-     inconsistent header when it's really an accidental one. */
+  /* Explicit background — without one this was fully transparent and just showed
+     whatever happened to be stacked behind it, differing by screen. A flat fill
+     alone would still be wrong though: every other panel (splash, pause, end
+     screen) sits on var(--bg) *plus* a grain-layer texture on top of it — the
+     header needs both, not just the color, to actually match the site's surfaces
+     rather than read as a flat UI bar dropped on top of them. */
   #siteHeader { position:fixed; top:0; left:0; right:0; height:var(--hh);
     display:flex; align-items:center; justify-content:space-between;
     padding:0 24px; z-index:100; background:var(--bg);
@@ -115,35 +117,13 @@
     font-size:clamp(48px,11vw,96px); letter-spacing:-0.02em; text-transform:uppercase;
     color:var(--fg); line-height:0.9; }
 
-  /* Shared button chrome — same bordered box + sweep-fill hover as the end-screen
-     cards (.btn-block below), just sized for standalone use instead of a card's
-     full-width/container-query sizing. Hidden until text exists (#startBtn). */
-  .btn { position:relative; overflow:hidden; display:inline-flex; align-items:center; justify-content:center;
-    padding:20px 40px; border:1px solid var(--fg); background:none; cursor:pointer;
-    font-family:var(--font-display);
-    font-size:clamp(20px,5vw,26px); font-weight:800; letter-spacing:-0.02em;
-    text-transform:uppercase; line-height:1;
-    transition:opacity 0.2s, visibility 0s; }
-  .btn .btn-label { position:relative; color:var(--fg); white-space:nowrap; pointer-events:none; }
-  .btn .btn-sweep { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-    background:var(--fg); clip-path:inset(0 100% 0 0); transition:clip-path 0.2s cubic-bezier(0.65,0,0.35,1); }
-  .btn .btn-sweep .btn-label { color:var(--bg); }
-  .btn:hover .btn-sweep { clip-path:inset(0 0 0 0); }
+  /* Sizes .btn-block's cqw font-size sensibly outside the end-screen's own card
+     (which gets that from .end-actions's container-type). Same fixed width those
+     cards render at in practice, so these are the literal same button — not a
+     lookalike with its own padding/sizing invented on top. */
+  .btn-block-wrap { width:min(340px, 100%); container-type:inline-size; }
   #startBtn { visibility:hidden; opacity:0; transition:opacity 0.2s, visibility 0s 0.2s; }
   #startBtn.ready { visibility:visible; opacity:1; transition:opacity 0.2s, visibility 0s; }
-
-  /* Solid-fill variant, reserved for the splash screen's single hero action. The
-     bordered/sweep look above is the site's language for a contextual action sitting
-     inside a scene (destroy, resume, rewrite) — reusing it here, under the biggest
-     headline on the site, read as a stray card fragment rather than an entrance.
-     A solid mark is the higher-contrast, more deliberate shape "start everything"
-     deserves, and a sweep has nothing to reveal once the fill is already there. */
-  .btn-solid { background:var(--fg); border-color:var(--fg);
-    transition:transform 0.15s, opacity 0.2s, visibility 0s; }
-  .btn-solid .btn-label { color:var(--bg); }
-  .btn-solid .btn-sweep { display:none; }
-  .btn-solid:hover { transform:scale(1.02); }
-  .btn-solid:active { transform:scale(0.98); }
 
   /* ── PAUSE OVERLAY ── */
   #pauseOverlay { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
@@ -392,6 +372,7 @@
 <body>
 <div class="grain-layer grain-fixed grain-bg"></div>
 <header id="siteHeader">
+  <div class="grain-layer grain-bg"></div>
   <img class="logo-img" id="logoBtn" src="logo.svg" alt="Word Destroyer">
   <button id="pauseBtn">Pause</button>
   <button id="soundBtn" title="Toggle sound">
@@ -410,10 +391,12 @@
   <div class="splash-inner">
     <p class="splash-wordmark">Word Destroyer</p>
     <h1 class="splash-title">Write it.<br>Destroy it.</h1>
-    <button class="btn btn-solid" id="splashBtn">
-      <span class="btn-label">Start</span>
-      <span class="btn-sweep"><span class="btn-label">Start</span></span>
-    </button>
+    <div class="btn-block-wrap">
+      <button class="btn-block" id="splashBtn">
+        <span class="btn-label">Start</span>
+        <span class="btn-sweep"><span class="btn-label">Start</span></span>
+      </button>
+    </div>
     <button class="splash-lb-link" id="lbPageBtn">View Leaderboard</button>
   </div>
 </div>
@@ -435,10 +418,12 @@
 
 <div id="landingUI" class="hidden">
   <span id="charCount"></span>
-  <button class="btn" id="startBtn">
-    <span class="btn-label">Destroy</span>
-    <span class="btn-sweep"><span class="btn-label">Destroy</span></span>
-  </button>
+  <div class="btn-block-wrap">
+    <button class="btn-block" id="startBtn">
+      <span class="btn-label">Destroy</span>
+      <span class="btn-sweep"><span class="btn-label">Destroy</span></span>
+    </button>
+  </div>
 </div>
 
 <div id="endFlash"></div>
@@ -461,14 +446,18 @@
   <div class="grain-layer grain-bg"></div>
   <p class="pause-label">Paused</p>
   <h2 class="pause-title">Take a<br>breath.</h2>
-  <button class="btn" id="resumeBtn">
-    <span class="btn-label">Resume</span>
-    <span class="btn-sweep"><span class="btn-label">Resume</span></span>
-  </button>
-  <button class="btn" id="rewriteBtn">
-    <span class="btn-label">Rewrite</span>
-    <span class="btn-sweep"><span class="btn-label">Rewrite</span></span>
-  </button>
+  <div class="btn-block-wrap">
+    <button class="btn-block" id="resumeBtn">
+      <span class="btn-label">Resume</span>
+      <span class="btn-sweep"><span class="btn-label">Resume</span></span>
+    </button>
+  </div>
+  <div class="btn-block-wrap">
+    <button class="btn-block" id="rewriteBtn">
+      <span class="btn-label">Rewrite</span>
+      <span class="btn-sweep"><span class="btn-label">Rewrite</span></span>
+    </button>
+  </div>
 </div>
 
 <!-- End screen -->
