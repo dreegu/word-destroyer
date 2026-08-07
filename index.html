@@ -70,20 +70,52 @@
     text-transform:uppercase; color:var(--muted); min-height:16px; }
   #charCount.warn { color:#c0392b; }
 
-  /* Button hidden until text exists */
-  .btn { display:inline-flex; align-items:center; justify-content:center;
-    padding:16px 44px;
+  /* Header above the writing line — icon + label + rule, sized/centered to the stage */
+  #writeHeader { position:fixed; transform:translateX(-50%);
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    z-index:50; transition:opacity 0.25s; }
+  #writeHeader.hidden { opacity:0; pointer-events:none; }
+  #writeHeader img { display:block; width:14px; height:14px; }
+  .write-header-label { font-size:11px; font-weight:500; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--muted); white-space:nowrap;
+    padding-bottom:10px; border-bottom:1px solid var(--fg); width:100%; text-align:center; }
+
+  /* Rotating "idea" suggestions below the writing line — typed/erased on a loop,
+     independent of whatever the user has actually typed. Gone once the game starts. */
+  #ideaPrompt { position:fixed; transform:translateX(-50%);
+    font-size:12px; font-weight:500; letter-spacing:0.04em; color:var(--muted);
+    white-space:nowrap; z-index:50; transition:opacity 0.25s; }
+  #ideaPrompt.hidden { opacity:0; pointer-events:none; }
+  #ideaPrompt .idea-cursor { display:inline-block; width:1px; }
+
+  /* Ghost element the Destroy button morphs into on game start — travels from the
+     button's own screen position down into the canvas paddle's, filling solid as
+     it shrinks, boxy corners throughout (no radius) to match the site's square chrome. */
+  .paddle-morph { position:fixed; z-index:70; display:flex; align-items:center; justify-content:center;
+    background:none; border:1px solid var(--fg); overflow:hidden; pointer-events:none;
+    transition: left 0.45s cubic-bezier(0.65,0,0.35,1), top 0.45s cubic-bezier(0.65,0,0.35,1),
+      width 0.45s cubic-bezier(0.65,0,0.35,1), height 0.45s cubic-bezier(0.65,0,0.35,1),
+      background-color 0.45s ease, border-color 0.45s ease; }
+  .paddle-morph-label { font-family:var(--font-display); font-weight:800; font-size:15px;
+    letter-spacing:0.02em; text-transform:uppercase; color:var(--fg);
+    white-space:nowrap; transition:opacity 0.2s ease; }
+
+  /* Shared button chrome — same bordered box + sweep-fill hover as the end-screen
+     cards (.btn-block below), just sized for standalone use instead of a card's
+     full-width/container-query sizing. Hidden until text exists (#startBtn). */
+  .btn { position:relative; overflow:hidden; display:inline-flex; align-items:center; justify-content:center;
+    padding:16px 44px; border:1px solid var(--fg); background:none; cursor:pointer;
     font-family:var(--font-display);
     font-size:15px; font-weight:800; letter-spacing:0.02em;
     text-transform:uppercase; line-height:0.9;
-    background:var(--fg); color:var(--bg); border:none; cursor:pointer;
-    transition:transform 0.15s, opacity 0.2s, visibility 0s; }
-  .btn:hover { transform:scale(1.02); }
-  .btn:active { transform:scale(0.98); }
+    transition:opacity 0.2s, visibility 0s; }
+  .btn .btn-label { position:relative; color:var(--fg); white-space:nowrap; pointer-events:none; }
+  .btn .btn-sweep { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:var(--fg); clip-path:inset(0 100% 0 0); transition:clip-path 0.2s cubic-bezier(0.65,0,0.35,1); }
+  .btn .btn-sweep .btn-label { color:var(--bg); }
+  .btn:hover .btn-sweep { clip-path:inset(0 0 0 0); }
   #startBtn { visibility:hidden; opacity:0; transition:opacity 0.2s, visibility 0s 0.2s; }
   #startBtn.ready { visibility:visible; opacity:1; transition:opacity 0.2s, visibility 0s; }
-  .btn.outline { background:transparent; color:var(--fg); border:2px solid var(--fg); }
-  .btn.outline:hover { background:var(--fg); color:var(--bg); }
 
   /* ── PAUSE OVERLAY ── */
   #pauseOverlay { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
@@ -372,7 +404,10 @@
   <div class="splash-inner">
     <p class="splash-wordmark">Word Destroyer</p>
     <h1 class="splash-title">Write it.<br>Destroy it.</h1>
-    <button class="btn" id="splashBtn">Start</button>
+    <button class="btn" id="splashBtn">
+      <span class="btn-label">Start</span>
+      <span class="btn-sweep"><span class="btn-label">Start</span></span>
+    </button>
     <button class="splash-lb-link" id="lbPageBtn">View Leaderboard</button>
   </div>
 </div>
@@ -386,9 +421,18 @@
   </div>
 </div>
 
+<div id="writeHeader" class="hidden">
+  <img src="icons/Icon=Asterisk.svg" alt="">
+  <span class="write-header-label">[Write something you'd like to destroy]</span>
+</div>
+<div id="ideaPrompt" class="hidden"></div>
+
 <div id="landingUI" class="hidden">
   <span id="charCount"></span>
-  <button class="btn" id="startBtn">Start Destroying</button>
+  <button class="btn" id="startBtn">
+    <span class="btn-label">Destroy</span>
+    <span class="btn-sweep"><span class="btn-label">Destroy</span></span>
+  </button>
 </div>
 
 <div id="comboDisplay"></div>
@@ -406,8 +450,14 @@
   <div class="grain-layer grain-bg"></div>
   <p class="pause-label">Paused</p>
   <h2 class="pause-title">Take a<br>breath.</h2>
-  <button class="btn" id="resumeBtn">Resume</button>
-  <button class="btn outline" id="rewriteBtn">Rewrite</button>
+  <button class="btn" id="resumeBtn">
+    <span class="btn-label">Resume</span>
+    <span class="btn-sweep"><span class="btn-label">Resume</span></span>
+  </button>
+  <button class="btn" id="rewriteBtn">
+    <span class="btn-label">Rewrite</span>
+    <span class="btn-sweep"><span class="btn-label">Rewrite</span></span>
+  </button>
 </div>
 
 <!-- End screen -->
@@ -491,7 +541,7 @@ const HEADER_H   = 52;
 const BALL_SPEED = 10;
 const BALL_R     = 8;
 const PADDLE_H   = 14;
-const PADDLE_WR  = 0.13;
+const PADDLE_WR  = 0.24;
 const FONT_FACE  = "'Barlow Condensed','Helvetica Neue',Helvetica,Arial,sans-serif";
 const LINE_PAD   = 40; // px from each edge for the underline
 
@@ -544,6 +594,8 @@ const hiddenInput   = document.getElementById('hiddenInput');
 const startBtn      = document.getElementById('startBtn');
 const charCountEl   = document.getElementById('charCount');
 const landingUI     = document.getElementById('landingUI');
+const writeHeader   = document.getElementById('writeHeader');
+const ideaPromptEl  = document.getElementById('ideaPrompt');
 const splashScreen  = document.getElementById('splashScreen');
 const splashBtn     = document.getElementById('splashBtn');
 const lbScreen      = document.getElementById('lbScreen');
@@ -665,7 +717,14 @@ function resize() {
   stage.w = clamp(H * STAGE_RATIO, Math.min(STAGE_MIN_W, W), W);
   stage.x = (W - stage.w) / 2;
 
-  fontSize = clamp(Math.floor(stage.w / 16), 28, 62);
+  // On mobile the stage floors out to the full viewport width, so this keeps the
+  // original W/16 sizing exactly as before. On desktop the stage is deliberately
+  // narrower than the viewport — sized off it directly instead would read as tiny,
+  // so it gets its own, larger-per-pixel scale.
+  const isDesktopStage = stage.w < W - 0.5;
+  fontSize = isDesktopStage
+    ? clamp(Math.floor(stage.w / 8), 40, 100)
+    : clamp(Math.floor(stage.w / 16), 28, 62);
   lineH    = fontSize * 1.25;
   updateFixedLineY();
 
@@ -678,6 +737,9 @@ function resize() {
   // HUD hugs the stage's right edge, not the viewport's — on mobile stage fills
   // the viewport so this collapses back to the original fixed 24px inset.
   gameScoreArea.style.right = (W - (stage.x + stage.w) + 24) + 'px';
+
+  positionWriteHeader();
+  positionIdeaPrompt();
 }
 
 window.addEventListener('resize', () => { resize(); if (state==='playing') layoutBricks(); });
@@ -721,6 +783,25 @@ function getLines(text) {
   });
   if (cur) lines.push(cur);
   return lines;
+}
+
+// Header (icon + label + rule) sits directly above the writing line — since text
+// grows upward as it wraps, its top edge has to track the current line count, not
+// a fixed offset. The idea-prompt line below is unaffected by wrapping (the last
+// line's baseline is always pinned to fixedLineY), so it only needs positioning once.
+function positionWriteHeader() {
+  const lines = getLines(hiddenInput.value);
+  const lineCount = Math.max(lines.length, 1);
+  const topOfText = fixedLineY - (lineCount - 1) * lineH - fontSize * 0.86;
+  const headerH = writeHeader.offsetHeight || 50;
+  writeHeader.style.left  = (stage.x + stage.w / 2) + 'px';
+  writeHeader.style.top   = (HEADER_H + topOfText - headerH - 24) + 'px';
+  writeHeader.style.width = Math.max(stage.w - LINE_PAD * 2, 120) + 'px';
+}
+
+function positionIdeaPrompt() {
+  ideaPromptEl.style.left = (stage.x + stage.w / 2) + 'px';
+  ideaPromptEl.style.top  = (HEADER_H + fixedLineY + 14 + 26) + 'px';
 }
 
 // ── Character rectangles for selection highlight ──────
@@ -772,6 +853,7 @@ hiddenInput.addEventListener('input', () => {
   charCountEl.textContent  = rem <= 15 ? `${rem} LEFT` : '';
   charCountEl.classList.toggle('warn', rem <= 5);
   startBtn.classList.toggle('ready', len > 0);
+  positionWriteHeader();
   playTyping();
 });
 
@@ -894,30 +976,129 @@ function startGame() {
   if (!msg) return;
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
-  state = 'playing';
-  sbIncrementMessages();
   hiddenInput.blur(); // dismiss keyboard, remove text cursor
-  landingUI.classList.add('hidden');
-  pauseBtn.classList.add('visible');
-  gameScoreArea.classList.add('visible');
-  gameScoreEl.textContent = '0';
+  stopIdeaPrompts();
+  ideaPromptEl.classList.add('hidden');
+  writeHeader.classList.add('hidden');
 
-  score = 0; bounces = 0; ballsLaunched = 1;
-  maxCombo = 1; combo = 1; comboTimer = 0;
-  lettersDestroyed = 0; wordsDestroyed = 0;
-  totalLetters = 0; totalShots = 0; goodShots = 0; paddleHits = 0;
-
+  // Paddle geometry has to exist before the morph starts, since the ghost travels
+  // to it — but nothing else about "playing" (score, bricks, the loop) starts
+  // until the morph lands, so there's no gap where the paddle exists without a
+  // button having visibly become it.
   const stageCX = stage.x + stage.w / 2;
   paddle = { x: stageCX, y: H-60, w: stage.w*PADDLE_WR, h: PADDLE_H };
-  balls = [spawnBall(stageCX, paddle.y - BALL_R - 2)];
-  particles = [];
 
-  stageRevealStart = performance.now();
-  layoutBricks();
-  totalLetters = bricks.length;
-  if (animId) cancelAnimationFrame(animId);
-  lastTimestamp = 0;
-  loop();
+  morphStartBtnToPaddle(() => {
+    state = 'playing';
+    sbIncrementMessages();
+    landingUI.classList.add('hidden');
+    pauseBtn.classList.add('visible');
+    gameScoreArea.classList.add('visible');
+    gameScoreEl.textContent = '0';
+
+    score = 0; bounces = 0; ballsLaunched = 1;
+    maxCombo = 1; combo = 1; comboTimer = 0;
+    lettersDestroyed = 0; wordsDestroyed = 0;
+    totalLetters = 0; totalShots = 0; goodShots = 0; paddleHits = 0;
+
+    balls = [spawnBall(stageCX, paddle.y - BALL_R - 2)];
+    particles = [];
+
+    stageRevealStart = performance.now();
+    layoutBricks();
+    totalLetters = bricks.length;
+    if (animId) cancelAnimationFrame(animId);
+    lastTimestamp = 0;
+    loop();
+  });
+}
+
+// Ghost element that travels from the Destroy button's own screen position into
+// the canvas paddle's, filling in solid as it shrinks — the button literally
+// becomes the paddle, rather than the paddle just appearing once the button
+// disappears. landingUI (text/count) fades out immediately via its own CSS
+// transition; this only owns the button's own journey.
+function morphStartBtnToPaddle(onDone) {
+  const btnRect    = startBtn.getBoundingClientRect();
+  const canvasRect = canvas.getBoundingClientRect();
+  const targetX = canvasRect.left + paddle.x - paddle.w/2;
+  const targetY = canvasRect.top  + paddle.y - paddle.h/2;
+
+  const ghost = document.createElement('div');
+  ghost.className = 'paddle-morph';
+  ghost.style.left   = btnRect.left + 'px';
+  ghost.style.top    = btnRect.top + 'px';
+  ghost.style.width  = btnRect.width + 'px';
+  ghost.style.height = btnRect.height + 'px';
+  ghost.innerHTML = '<span class="paddle-morph-label">Destroy</span>';
+  document.body.appendChild(ghost);
+
+  landingUI.classList.add('hidden');
+
+  // Force layout so the transition below animates FROM this starting rect,
+  // rather than starting already at the target (same trick used for the
+  // end-screen card reveals via their .rise/.reveal class split).
+  void ghost.offsetWidth;
+
+  requestAnimationFrame(() => {
+    ghost.querySelector('.paddle-morph-label').style.opacity = '0';
+    ghost.style.left            = targetX + 'px';
+    ghost.style.top             = targetY + 'px';
+    ghost.style.width           = paddle.w + 'px';
+    ghost.style.height          = paddle.h + 'px';
+    ghost.style.backgroundColor = '#111';
+    ghost.style.borderColor     = '#111';
+  });
+
+  setTimeout(() => { ghost.remove(); onDone(); }, 460);
+}
+
+// ═══════════════════════════════════════
+//   IDEA PROMPTS — typed/erased suggestions under the writing line
+// ═══════════════════════════════════════
+const IDEA_PROMPTS = [
+  "something you never said.",
+  "something you can't control.",
+  "something keeping you awake.",
+];
+const IDEA_TYPE_MS   = 55;
+const IDEA_ERASE_MS  = 32;
+const IDEA_HOLD_MS   = 1400;
+let ideaTimer = null;
+
+function startIdeaPrompts() {
+  stopIdeaPrompts();
+  let phraseIdx = 0, charIdx = 0, mode = 'typing'; // 'typing' | 'hold' | 'erasing'
+  let holdUntil = 0;
+
+  function render() {
+    const phrase = IDEA_PROMPTS[phraseIdx];
+    ideaPromptEl.innerHTML = `Idea: ${phrase.slice(0, charIdx)}<span class="idea-cursor">|</span>`;
+  }
+  function tick() {
+    const phrase = IDEA_PROMPTS[phraseIdx];
+    if (mode === 'typing') {
+      charIdx++;
+      render();
+      if (charIdx >= phrase.length) { mode = 'hold'; holdUntil = performance.now() + IDEA_HOLD_MS; }
+      ideaTimer = setTimeout(tick, IDEA_TYPE_MS);
+    } else if (mode === 'hold') {
+      const remaining = holdUntil - performance.now();
+      if (remaining <= 0) { mode = 'erasing'; tick(); return; }
+      ideaTimer = setTimeout(tick, remaining);
+    } else { // erasing
+      charIdx--;
+      render();
+      if (charIdx <= 0) { mode = 'typing'; phraseIdx = (phraseIdx + 1) % IDEA_PROMPTS.length; }
+      ideaTimer = setTimeout(tick, IDEA_ERASE_MS);
+    }
+  }
+  render();
+  ideaTimer = setTimeout(tick, IDEA_TYPE_MS);
+}
+
+function stopIdeaPrompts() {
+  if (ideaTimer) { clearTimeout(ideaTimer); ideaTimer = null; }
 }
 
 // ═══════════════════════════════════════
@@ -1002,6 +1183,9 @@ function goToSplash() {
   endScreen.classList.remove('visible');
   pauseBtn.classList.remove('visible');
   gameScoreArea.classList.remove('visible');
+  writeHeader.classList.add('hidden');
+  ideaPromptEl.classList.add('hidden');
+  stopIdeaPrompts();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, W, H);
   shredStop(); // leaving the end screen — no reason to keep the banner ticking off-screen
@@ -1024,6 +1208,12 @@ function goToLanding() {
   charCountEl.textContent = '';
   cursorVisible = true; cursorTimer = 0;
   selStart = 0; selEnd = 0;
+
+  writeHeader.classList.remove('hidden');
+  positionWriteHeader();
+  ideaPromptEl.classList.remove('hidden');
+  positionIdeaPrompt();
+  startIdeaPrompts();
 
   if (animId) cancelAnimationFrame(animId);
   (function ll() { if (state !== 'landing') return; drawLanding(); animId = requestAnimationFrame(ll); })();
@@ -1220,11 +1410,9 @@ function draw() {
     ctx.restore();
   });
 
-  // Paddle
+  // Paddle — square corners, boxy like the rest of the site's chrome
   ctx.fillStyle = '#111';
-  ctx.beginPath();
-  rrect(ctx, paddle.x-paddle.w/2, paddle.y-paddle.h/2, paddle.w, paddle.h, paddle.h/2);
-  ctx.fill();
+  ctx.fillRect(paddle.x-paddle.w/2, paddle.y-paddle.h/2, paddle.w, paddle.h);
 
   // Balls
   balls.forEach(b => {
@@ -1667,13 +1855,6 @@ function setBtnLabel(btn, text) {
 //   UTILS
 // ═══════════════════════════════════════
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-function rrect(ctx, x, y, w, h, r) {
-  r = Math.min(r, w/2, h/2);
-  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
-}
 
 // ── Boot ─────────────────────────────
 resize();
