@@ -106,17 +106,6 @@
     letter-spacing:-0.02em; text-transform:uppercase; color:var(--fg);
     white-space:nowrap; transition:opacity 0.2s ease; }
 
-  /* Countdown — one word at a time, centered over the stage, between the paddle
-     landing and the ball actually dropping. Reuses .pop-in (same entrance already
-     used for the top-score badge) rather than inventing new motion. */
-  #countdownOverlay { position:fixed; top:var(--hh); left:0; right:0; bottom:0;
-    display:flex; align-items:center; justify-content:center;
-    z-index:65; pointer-events:none; }
-  #countdownOverlay.hidden { display:none; }
-  .countdown-word { font-family:var(--font-display); font-weight:800;
-    font-size:clamp(48px,11vw,96px); letter-spacing:-0.02em; text-transform:uppercase;
-    color:var(--fg); line-height:0.9; }
-
   /* Sizes .btn-block's cqw font-size sensibly outside the end-screen's own card
      (which gets that from .end-actions's container-type). Same fixed width those
      cards render at in practice, so these are the literal same button — not a
@@ -427,7 +416,6 @@
 </div>
 
 <div id="endFlash"></div>
-<div id="countdownOverlay" class="hidden"><span class="countdown-word" id="countdownWord"></span></div>
 
 <!-- Score + multiplier during gameplay -->
 <div id="gameScoreArea">
@@ -604,8 +592,6 @@ const gameScoreEl     = document.getElementById('gameScore');
 const gameMultiplierEl = document.getElementById('gameMultiplier');
 const endScreen     = document.getElementById('endScreen');
 const endFlash      = document.getElementById('endFlash');
-const countdownOverlay = document.getElementById('countdownOverlay');
-const countdownWordEl  = document.getElementById('countdownWord');
 const pauseOverlay  = document.getElementById('pauseOverlay');
 const pauseBtn      = document.getElementById('pauseBtn');
 const resumeBtn     = document.getElementById('resumeBtn');
@@ -992,7 +978,7 @@ hiddenInput.addEventListener('keydown', e => {
 
 let startingGame = false;
 function startGame() {
-  // state stays 'landing' throughout the morph itself (it only flips to 'readying'
+  // state stays 'landing' throughout the morph itself (it only flips to 'playing'
   // once the morph lands), so an Enter-press or stray click in that window would
   // otherwise re-enter this whole function — this flag is what actually closes it.
   if (state !== 'landing' || startingGame) return;
@@ -1014,10 +1000,8 @@ function startGame() {
   paddle = { x: stageCX, y: H-60, w: stage.w*PADDLE_WR, h: PADDLE_H };
 
   morphStartBtnToPaddle(() => {
-    // "readying" — paddle, walls and bricks are all in place and rendering (the
-    // loop is already running), but update() only drives ball physics once state
-    // is 'playing', so the board sits still under the Ready/Set/Destroy beat below.
-    state = 'readying';
+    state = 'playing';
+    sbIncrementMessages();
     landingUI.classList.add('hidden');
     pauseBtn.classList.add('visible');
     gameScoreArea.classList.add('visible');
@@ -1029,7 +1013,7 @@ function startGame() {
     lettersDestroyed = 0; wordsDestroyed = 0;
     totalLetters = 0; totalShots = 0; goodShots = 0; paddleHits = 0;
 
-    balls = [];
+    balls = [spawnBall(stageCX, paddle.y - BALL_R - 2)];
     particles = [];
 
     stageRevealStart = performance.now();
@@ -1038,32 +1022,7 @@ function startGame() {
     if (animId) cancelAnimationFrame(animId);
     lastTimestamp = 0;
     loop();
-
-    playCountdown(() => {
-      state = 'playing';
-      sbIncrementMessages();
-      balls = [spawnBall(stageCX, paddle.y - BALL_R - 2)];
-      lastTimestamp = 0;
-    });
   });
-}
-
-// One word at a time, centered over the board — plays after the paddle has
-// landed and the stage/bricks have settled, right before the ball drops.
-function playCountdown(onDone) {
-  const words = ['Ready.', 'Set.', 'Destroy!'];
-  let i = 0;
-  countdownOverlay.classList.remove('hidden');
-  function step() {
-    countdownWordEl.textContent = words[i];
-    countdownWordEl.classList.remove('pop-in');
-    void countdownWordEl.offsetWidth; // restart the animation for each word
-    countdownWordEl.classList.add('pop-in');
-    i++;
-    if (i < words.length) setTimeout(step, 500);
-    else setTimeout(() => { countdownOverlay.classList.add('hidden'); onDone(); }, 480);
-  }
-  step();
 }
 
 // Ghost element that travels from the Destroy button's own screen position into
@@ -1230,7 +1189,6 @@ function goToSplash() {
   cancelAnimationFrame(animId);
   state = 'splash';
   startingGame = false;
-  countdownOverlay.classList.add('hidden');
   splashScreen.classList.remove('hidden');
   lbScreen.classList.add('hidden');
   landingUI.classList.add('hidden');
@@ -1250,7 +1208,6 @@ function goToLanding() {
   cancelAnimationFrame(animId);
   state = 'landing';
   startingGame = false;
-  countdownOverlay.classList.add('hidden');
   splashScreen.classList.add('hidden');
   pauseOverlay.classList.remove('visible');
   endScreen.classList.remove('visible');
