@@ -495,6 +495,16 @@ const PADDLE_WR  = 0.13;
 const FONT_FACE  = "'Barlow Condensed','Helvetica Neue',Helvetica,Arial,sans-serif";
 const LINE_PAD   = 40; // px from each edge for the underline
 
+// Play area is a phone-shaped column, not the raw viewport — width is derived from
+// the available HEIGHT (w = h * ratio), so it holds the same proportions at any
+// window size instead of pinning to a fixed pixel cap. Below STAGE_MIN_W it just
+// floors out to the full viewport width (today's mobile behavior, unchanged).
+const STAGE_RATIO = 9 / 16;
+const STAGE_MIN_W = 360;
+const STAGE_REVEAL_MS = 380; // wall/scrim slide-in duration on game start
+const BRICK_REVEAL_MS = 220;
+const BRICK_STAGGER   = 5; // ms of extra delay per brick, in reading order
+
 // ── Supabase ──────────────────────────────────────────
 const SUPA_URL = 'https://aonhttuukxdsoiojxxvk.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmh0dHV1a3hkc29pb2p4eHZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNzA2MjYsImV4cCI6MjA5OTk0NjYyNn0.kPsPu5HtLM6_QEftbko0-HLGUBmd6q0hGWUwnv_ClRU';
@@ -616,6 +626,8 @@ soundBtn.addEventListener('click', () => {
 // ── State ────────────────────────────────────────────
 let state = 'splash';
 let W, H, fontSize, lineH, fixedLineY;
+let stage = { x: 0, w: 0 }; // the phone-shaped play column, centered in the viewport
+let stageRevealStart = 0;
 let paddle, balls, bricks, particles;
 let score, bounces, ballsLaunched, maxCombo, combo, comboTimer;
 let lettersDestroyed, wordsDestroyed;
@@ -650,15 +662,22 @@ function resize() {
   canvas.style.height = H + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
-  fontSize = clamp(Math.floor(W / 16), 28, 62);
+  stage.w = clamp(H * STAGE_RATIO, Math.min(STAGE_MIN_W, W), W);
+  stage.x = (W - stage.w) / 2;
+
+  fontSize = clamp(Math.floor(stage.w / 16), 28, 62);
   lineH    = fontSize * 1.25;
   updateFixedLineY();
 
   if (state === 'playing' && paddle) {
-    paddle.w = W * PADDLE_WR;
-    paddle.x = clamp(paddle.x, paddle.w/2, W - paddle.w/2);
+    paddle.w = stage.w * PADDLE_WR;
+    paddle.x = clamp(paddle.x, stage.x + paddle.w/2, stage.x + stage.w - paddle.w/2);
     paddle.y = H - 60;
   }
+
+  // HUD hugs the stage's right edge, not the viewport's — on mobile stage fills
+  // the viewport so this collapses back to the original fixed 24px inset.
+  gameScoreArea.style.right = (W - (stage.x + stage.w) + 24) + 'px';
 }
 
 window.addEventListener('resize', () => { resize(); if (state==='playing') layoutBricks(); });
@@ -672,7 +691,7 @@ if (window.visualViewport) {
 function getLines(text) {
   if (!text) return [];
   ctx.font = `800 ${fontSize}px ${FONT_FACE}`;
-  const areaW = W * 0.82;
+  const areaW = stage.w * 0.82;
   const words = text.split(/\s+/);
   const lines = [];
   let cur = '';
@@ -716,7 +735,7 @@ function buildCharRects(text, lines) {
     const rectY = baselineY - fontSize * 0.86;
     const rectH = fontSize * 0.92;
     const lineW = ctx.measureText(line).width;
-    let cx = (W - lineW) / 2;
+    let cx = stage.x + (stage.w - lineW) / 2;
 
     for (let ci = 0; ci < line.length; ci++) {
       const ch = line[ci];
@@ -804,13 +823,15 @@ function drawLanding() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
 
+  const stageCX = stage.x + stage.w / 2;
+
   if (!text) {
     // Placeholder — hidden when focused
     if (!inputFocused) {
       ctx.fillStyle = 'rgba(17,17,17,0.18)';
-      ctx.fillText('WRITE IT. DESTROY IT.', W/2, fixedLineY);
+      ctx.fillText('WRITE IT. DESTROY IT.', stageCX, fixedLineY);
     }
-    if (inputFocused && cursorVisible) drawCursor(W/2, fixedLineY);
+    if (inputFocused && cursorVisible) drawCursor(stageCX, fixedLineY);
   } else {
     // Selection highlight (drawn first, behind text)
     if (inputFocused && selStart < selEnd) {
@@ -826,24 +847,24 @@ function drawLanding() {
     ctx.fillStyle = '#111';
     lines.forEach((line, i) => {
       const y = fixedLineY - (lines.length - 1 - i) * lineH;
-      ctx.fillText(line, W/2, y);
+      ctx.fillText(line, stageCX, y);
     });
 
     // Cursor at end of last line
     if (inputFocused && cursorVisible && selStart === selEnd) {
       const lastLine = lines[lines.length - 1];
       const lw = ctx.measureText(lastLine).width;
-      drawCursor(W/2 + lw/2 + 4, fixedLineY);
+      drawCursor(stageCX + lw/2 + 4, fixedLineY);
     }
   }
 
-  // Fixed underline — full width minus padding, always same position
+  // Fixed underline — spans the stage, not the raw viewport
   const uly = fixedLineY + 14;
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(LINE_PAD, uly);
-  ctx.lineTo(W - LINE_PAD, uly);
+  ctx.moveTo(stage.x + LINE_PAD, uly);
+  ctx.lineTo(stage.x + stage.w - LINE_PAD, uly);
   ctx.stroke();
 }
 
@@ -886,10 +907,12 @@ function startGame() {
   lettersDestroyed = 0; wordsDestroyed = 0;
   totalLetters = 0; totalShots = 0; goodShots = 0; paddleHits = 0;
 
-  paddle = { x: W/2, y: H-60, w: W*PADDLE_WR, h: PADDLE_H };
-  balls = [spawnBall(W/2, paddle.y - BALL_R - 2)];
+  const stageCX = stage.x + stage.w / 2;
+  paddle = { x: stageCX, y: H-60, w: stage.w*PADDLE_WR, h: PADDLE_H };
+  balls = [spawnBall(stageCX, paddle.y - BALL_R - 2)];
   particles = [];
 
+  stageRevealStart = performance.now();
   layoutBricks();
   totalLetters = bricks.length;
   if (animId) cancelAnimationFrame(animId);
@@ -906,12 +929,13 @@ function layoutBricks() {
   const lines = getLines(text);
   ctx.font = `800 ${fontSize}px ${FONT_FACE}`;
   let wordIdxGlobal = 0;
+  let brickIdx = 0;
 
   lines.forEach((line, li) => {
     const baselineY = fixedLineY - (lines.length - 1 - li) * lineH;
     const midY      = baselineY - fontSize * 0.35;
     const lineW     = ctx.measureText(line).width;
-    let   charX     = (W - lineW) / 2;
+    let   charX     = stage.x + (stage.w - lineW) / 2;
 
     line.split(/\s+/).forEach(word => {
       const wIdx = wordIdxGlobal++;
@@ -920,7 +944,8 @@ function layoutBricks() {
         const cw = ctx.measureText(ch).width;
         bricks.push({ char:ch, wordIdx:wIdx, x:charX+cw/2, y:midY,
           w:cw+2, h:fontSize*0.9, dead:false,
-          flashTimer:0, deathTimer:-1, fontSize });
+          flashTimer:0, deathTimer:-1, fontSize,
+          birthDelay: brickIdx++ * BRICK_STAGGER });
         charX += cw;
       }
       charX += ctx.measureText(' ').width;
@@ -1032,7 +1057,7 @@ function loop(ts = 0) {
 function update(dt = 1) {
   if (state !== 'playing') return;
 
-  paddle.x += (clamp(mouseX, paddle.w/2, W-paddle.w/2) - paddle.x) * 0.25 * dt;
+  paddle.x += (clamp(mouseX, stage.x+paddle.w/2, stage.x+stage.w-paddle.w/2) - paddle.x) * 0.25 * dt;
   comboTimer -= dt;
   if (comboTimer <= 0) { showCombo(false); } // hide display; combo value persists until ball drop
   if (shakeTime > 0) shakeTime -= dt;
@@ -1043,8 +1068,8 @@ function update(dt = 1) {
     if (b.trail.length > 8) b.trail.shift();
     b.x += b.vx * dt; b.y += b.vy * dt;
 
-    if (b.x - b.r < 0)  { b.x = b.r;     b.vx =  Math.abs(b.vx); }
-    if (b.x + b.r > W)  { b.x = W-b.r;   b.vx = -Math.abs(b.vx); }
+    if (b.x - b.r < stage.x)          { b.x = stage.x+b.r;         b.vx =  Math.abs(b.vx); }
+    if (b.x + b.r > stage.x+stage.w)  { b.x = stage.x+stage.w-b.r; b.vx = -Math.abs(b.vx); }
     if (b.y - b.r < 0)  { b.y = b.r;     b.vy =  Math.abs(b.vy); }
 
     if (b.y - b.r > H+40) {
@@ -1146,13 +1171,37 @@ function draw() {
   }
   ctx.clearRect(-20,-20,W+40,H+40);
 
+  // Stage walls slide in from the viewport edges to the stage's own edges, with a
+  // faint scrim over the dead space outside — the same "arrives once you commit"
+  // idea as the rest of the reveal choreography (banner unfurl, card rise) elsewhere
+  // in this file, just minimal enough not to compete with the bricks themselves.
+  const revealT = clamp((performance.now() - stageRevealStart) / STAGE_REVEAL_MS, 0, 1);
+  const revealE = 1 - Math.pow(1 - revealT, 3);
+  const railL = stage.x       + (0 - stage.x) * (1 - revealE);
+  const railR = (stage.x+stage.w) + (W - (stage.x+stage.w)) * (1 - revealE);
+
+  if (stage.x > 0.5) {
+    ctx.fillStyle = `rgba(17,17,17,${0.035 * revealE})`;
+    ctx.fillRect(0, 0, railL, H);
+    ctx.fillRect(railR, 0, W-railR, H);
+  }
+  ctx.strokeStyle = `rgba(17,17,17,${0.7 * revealE})`;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(railL, 0); ctx.lineTo(railL, H);
+  ctx.moveTo(railR, 0); ctx.lineTo(railR, H);
+  ctx.stroke();
+
   bricks.forEach(br => {
     if (br.dead && br.deathTimer < 0) return;
-    const t = br.dead ? clamp(br.deathTimer/15,0,1) : 0;
+    const deathT = br.dead ? clamp(br.deathTimer/15,0,1) : 0;
+    const birthT = br.dead ? 1 : clamp((performance.now()-stageRevealStart-br.birthDelay)/BRICK_REVEAL_MS, 0, 1);
+    const birthE = 1 - Math.pow(1-birthT, 3);
+    const scaleT = br.dead ? (1-deathT*0.7) : birthE;
     ctx.save();
     ctx.translate(br.x, br.y);
-    ctx.scale(1-t*0.7, 1-t*0.7);
-    ctx.globalAlpha = br.dead ? clamp(1-t*1.6,0,1) : 1;
+    ctx.scale(scaleT, scaleT);
+    ctx.globalAlpha = br.dead ? clamp(1-deathT*1.6,0,1) : birthE;
     const flash = br.flashTimer/5;
     ctx.font = `800 ${br.fontSize}px ${FONT_FACE}`;
     ctx.fillStyle = flash > 0 ? `rgba(17,17,17,${1-flash*0.8})` : '#111';
