@@ -885,7 +885,11 @@ canvas.addEventListener('click',      () => { if (state === 'landing') hiddenInp
 canvas.addEventListener('touchstart', () => { if (state === 'landing') hiddenInput.focus(); }, { passive: true });
 
 window.addEventListener('mousemove', e => { mouseX = e.clientX; });
+// Only hijack touchmove (to drag the paddle) while actually playing — this was
+// unconditional before, which also blocked native scrolling everywhere else on
+// mobile: the end screen's own overflow-y:auto, the leaderboard list, etc.
 window.addEventListener('touchmove', e => {
+  if (state !== 'playing') return;
   e.preventDefault(); mouseX = e.touches[0].clientX;
 }, { passive: false });
 
