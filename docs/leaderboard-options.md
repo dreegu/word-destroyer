@@ -17,6 +17,20 @@ The migration also covers every fix the hardening list below was meant to make:
 | Swap to the publishable key | Supabase retires the current key by end of 2026 | No key in the page; the database password stays on Vercel's side |
 | "Leaderboard unavailable" message | Today an outage looks like "No scores yet" | Built in |
 
+### Migration status (16 Oct 2026)
+
+Done on branch `claude/leaderboard-research-8ea447`. **Not merged and not live**: production still runs the Supabase version until the branch is merged into `main`.
+
+- Neon is connected to the word-destroyer Vercel project as `DATABASE_URL`, with no per-deployment database copies.
+- All 20 Supabase scores and the play counter (87) are imported. The Neon top 10 matches Supabase exactly.
+- Tested on the preview deployment:
+  - Reading the top 10 works, and so does the "View Leaderboard" page.
+  - Saving from the end screen puts the new row in the right place.
+  - Fake scores (above 400,000 or decimals) and names longer than 3 characters are rejected.
+  - When the API is down, players see "Leaderboard unavailable right now".
+  - The test rows were deleted afterwards and the counter was reset to 87.
+- **At merge time:** any scores saved on the live game after 16 Oct 12:04 exist only in Supabase. Re-export and copy them over just before merging. After that, the Supabase project can be paused or deleted.
+
 The sections below are the original research. "Keep Supabase" was the recommendation before this decision.
 
 ## Short version (original, before the decision)
