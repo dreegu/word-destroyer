@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Word Destroyer</title>
 <link rel="icon" href="Fav Icon.png" type="image/png">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -543,37 +542,41 @@ const STAGE_REVEAL_MS = 380; // wall/scrim slide-in duration on game start
 const BRICK_REVEAL_MS = 220;
 const BRICK_STAGGER   = 5; // ms of extra delay per brick, in reading order
 
-// ── Supabase ──────────────────────────────────────────
-const SUPA_URL = 'https://aonhttuukxdsoiojxxvk.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvbmh0dHV1a3hkc29pb2p4eHZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNzA2MjYsImV4cCI6MjA5OTk0NjYyNn0.kPsPu5HtLM6_QEftbko0-HLGUBmd6q0hGWUwnv_ClRU';
-let sb = null;
-try { sb = supabase.createClient(SUPA_URL, SUPA_KEY); } catch(e) { console.warn('Supabase unavailable'); }
+// ── Leaderboard API (api/leaderboard.js → Neon Postgres) ──
 let leaderboard   = [];
+let leaderboardOk = false; // false when the last read failed: show "unavailable", not "no scores yet"
+const LB_UNAVAILABLE = '<p class="lb-empty">Leaderboard unavailable right now.</p>';
 
 // Internal-only counter: increments on game start, not displayed anywhere.
-async function sbIncrementMessages() {
-  if (!sb) return;
-  try { await sb.rpc('increment_wd_messages'); } catch(e) {}
+function apiGameStart() {
+  fetch('/api/game-start', { method:'POST', keepalive:true }).catch(() => {});
 }
 
-async function sbFetchLeaderboard() {
-  if (!sb) return;
+async function apiFetchLeaderboard() {
   try {
-    const { data } = await sb.from('wd_leaderboard')
-      .select('initials,score').order('score', { ascending:false }).limit(10);
-    leaderboard = data || [];
-  } catch(e) { leaderboard = []; }
+    const res = await fetch('/api/leaderboard');
+    if (!res.ok) throw new Error(res.status);
+    leaderboard = (await res.json()).scores;
+    leaderboardOk = true;
+  } catch(e) { leaderboard = []; leaderboardOk = false; }
 }
 
-async function sbSubmitScore(initials, userScore) {
-  if (!sb) return;
+// Returns whether the score was saved. The response carries the fresh top 10.
+async function apiSubmitScore(initials, userScore) {
   try {
-    await sb.from('wd_leaderboard')
-      .insert({ initials: initials.toUpperCase().slice(0,3), score: userScore });
-    await delay(400);
-    await sbFetchLeaderboard();
-  } catch(e) { console.warn('Submit:', e); }
+    const res = await fetch('/api/leaderboard', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ initials: initials.toUpperCase().slice(0,3), score: userScore }),
+    });
+    if (!res.ok) throw new Error(res.status);
+    leaderboard = (await res.json()).scores;
+    return true;
+  } catch(e) { console.warn('Submit:', e); return false; }
 }
+
+// Initials come from other players, so never put them into innerHTML raw.
+const escapeHtml = s => String(s).replace(/[&<>"']/g,
+  c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
 
 // ── DOM ──────────────────────────────────────────────
 const canvas        = document.getElementById('gameCanvas');
@@ -1005,7 +1008,7 @@ function startGame() {
 
   morphStartBtnToPaddle(() => {
     state = 'playing';
-    sbIncrementMessages();
+    apiGameStart();
     landingUI.classList.add('hidden');
     pauseBtn.classList.add('visible');
     gameScoreArea.classList.add('visible');
@@ -1172,20 +1175,18 @@ async function goToLbPage() {
   lbScreen.classList.remove('hidden');
   const listEl = document.getElementById('lbPageList');
   listEl.innerHTML = '<p class="lb-loading">Loading...</p>';
-  if (sb) {
-    await sbFetchLeaderboard();
-    if (leaderboard.length) {
-      listEl.innerHTML = leaderboard.map((e, i) => `
-        <div class="lb-row">
-          <span class="lb-rank">${String(i+1).padStart(2,'0')}</span>
-          <span class="lb-name">${e.initials}</span>
-          <span class="lb-score">${fmtScore(e.score)}</span>
-        </div>`).join('');
-    } else {
-      listEl.innerHTML = '<p class="lb-empty">No scores yet — yours could be first.</p>';
-    }
+  await apiFetchLeaderboard();
+  if (!leaderboardOk) {
+    listEl.innerHTML = LB_UNAVAILABLE;
+  } else if (leaderboard.length) {
+    listEl.innerHTML = leaderboard.map((e, i) => `
+      <div class="lb-row">
+        <span class="lb-rank">${String(i+1).padStart(2,'0')}</span>
+        <span class="lb-name">${escapeHtml(e.initials)}</span>
+        <span class="lb-score">${fmtScore(e.score)}</span>
+      </div>`).join('');
   } else {
-    listEl.innerHTML = '<p class="lb-empty">Leaderboard unavailable offline.</p>';
+    listEl.innerHTML = '<p class="lb-empty">No scores yet — yours could be first.</p>';
   }
 }
 
@@ -1662,11 +1663,10 @@ async function endGame() {
   // to the accuracy sequence, since it visually replaces the accuracy label.
   document.getElementById('lbList').innerHTML = '<p class="lb-loading">Loading...</p>';
   let qualifiesForTopScore = false;
-  const lbFetchPromise = sb
-    ? sbFetchLeaderboard().then(() => { qualifiesForTopScore = renderLeaderboard(finalScore); })
-    : Promise.resolve().then(() => {
-        document.getElementById('lbList').innerHTML = '<p class="lb-empty">Leaderboard unavailable offline.</p>';
-      });
+  const lbFetchPromise = apiFetchLeaderboard().then(() => {
+    if (leaderboardOk) qualifiesForTopScore = renderLeaderboard(finalScore);
+    else document.getElementById('lbList').innerHTML = LB_UNAVAILABLE;
+  });
 
   // Reset the reveal sequence (in case of replay) then play it: rise/fade →
   // banner unfurls open from center → banner text fades/rises in →
@@ -1780,7 +1780,7 @@ function renderLeaderboard(userScore) {
       const e = leaderboard[boardIdx++];
       html += `<div class="lb-row">
         <span class="lb-rank">${String(rowNum).padStart(2,'0')}</span>
-        <span class="lb-name">${e.initials}</span>
+        <span class="lb-name">${escapeHtml(e.initials)}</span>
         <span class="lb-score">${fmtScore(e.score)}</span>
       </div>`;
     }
@@ -1799,8 +1799,11 @@ function renderLeaderboard(userScore) {
       const initials = (input?.value || '').trim();
       if (!initials) { input?.focus(); return; }
       btn.textContent = '...'; btn.disabled = true;
-      await sbSubmitScore(initials, userScore);
-      renderLeaderboardFinal(userScore, initials);
+      if (await apiSubmitScore(initials, userScore)) {
+        renderLeaderboardFinal(userScore, initials);
+      } else {
+        btn.textContent = 'Retry'; btn.disabled = false;
+      }
     };
     if (input) {
       input.addEventListener('input', () => { input.value = input.value.toUpperCase(); });
@@ -1824,7 +1827,7 @@ function renderLeaderboardFinal(userScore, initials) {
     const mine = e.initials.toUpperCase() === initials.toUpperCase() && e.score === userScore;
     html += `<div class="lb-row${mine ? ' lb-mine' : ''}">
       <span class="lb-rank">${String(i+1).padStart(2,'0')}</span>
-      <span class="lb-name">${e.initials}</span>
+      <span class="lb-name">${escapeHtml(e.initials)}</span>
       <span class="lb-score">${fmtScore(e.score)}</span>
     </div>`;
   });
